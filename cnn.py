@@ -130,9 +130,9 @@ def step():
             # zustand_t1[row[1]] += 1 / (
             #     1 + np.exp(-(zustand_t[row[0]] * row[2]))
             # )
-            zustand_t1[row[1]] += zustand_t[row[0]]
+            zustand_t1[row[1]] += zustand_t[row[0]] * row[2]
 
-    for ind, outOfSum in zustand_t1:
+    for ind, outOfSum in np.ndenumerate(zustand_t1):
         zustand_t1[ind] = 1 / (1 + np.exp(- outOfSum))
 
     zustand_tziel = np.copy(zustand_t1)
@@ -161,13 +161,13 @@ def step():
             neuro_aktivitaet[laufindex] += abs(synapsenMatrix[zeile][2])
     zustand_t = np.copy(zustand_t1) * 0.99
     durchgang += 1
-    print('error = tziel - t1  (und delta_zstd): \n')
-    # debugger.set_trace()
-    for (n, z) in enumerate(zustand_tziel):
-        print('{:7.3f} = {:7.3f} - {:7.3f} ; {:7.3f}'.format(
-            zustand_tziel[n][0] - zustand_t1[n][0], zustand_tziel[n][0],
-            zustand_t1[n][0], tempdelta[n][0])
-        )
+    # print('error = tziel - t1  (und delta_zstd): \n')
+    # # debugger.set_trace()
+    # for (n, z) in enumerate(zustand_tziel):
+    #     print('{:7.3f} = {:7.3f} - {:7.3f} ; {:7.3f}'.format(
+    #         zustand_tziel[n][0] - zustand_t1[n][0], zustand_tziel[n][0],
+    #         zustand_t1[n][0], tempdelta[n][0])
+    #     )
     print('error {:7.3f} groesse {:3} lauf {:10}'.format(
         np.linalg.norm(zustand_tziel - zustand_t1), netsize, durchgang)
     )
