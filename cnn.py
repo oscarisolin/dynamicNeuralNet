@@ -3,50 +3,64 @@
 import numpy as np
 
 
-netsize = 10
+netsize = 100
 
 zustand_t = 2 * np.random.random((netsize, 1)) - 1
 zustand_t1 = np.copy(zustand_t)
 neuro_aktivitaet = np.zeros(netsize)
 durchgang = 0
 
+synapsenMatrix = np.multiply(
+    (netsize * np.random.random((netsize, 3))).astype(int),
+    [1, 1, (0.1 / netsize)]
+)
 
-synapsenMatrix = np.array([
-    [0, 2, 0.2],
-    [0, 1, 0.1],
-    [0, 4, 0.1],
-    [0, 5, 0.1],
-    [0, 6, 0.1],
-    [1, 4, 0.5],
-    [1, 5, 0.5],
-    [1, 6, 0.5],
-    [1, 3, 0.5],
-    [1, 7, 0.5],
-    [1, 8, 0.5],
-    [1, 9, 0.5],
-    [2, 7, 0.5],
-    [2, 8, 0.5],
-    [2, 9, 0.5],
-    [3, 7, 0.5],
-    [3, 8, 0.5],
-    [3, 9, 0.5],
-    [4, 7, 0.5],
-    [4, 8, 0.5],
-    [4, 9, 0.5],
-    [5, 7, 0.5],
-    [5, 8, 0.5],
-    [5, 9, 0.5],
-    [6, 7, 0.5],
-    [6, 8, 0.5],
-    [6, 9, 0.5],
-    [7, 8, 0.5],
-    [7, 9, 0.5],
-    [2, 1, 0.5]
-])
+
+# synapsenMatrix = np.array([
+#     [0, 2, 0.2],
+#     [0, 1, 0.1],
+#     [0, 4, 0.1],
+#     [0, 5, 0.1],
+#     [0, 6, 0.1],
+#     [1, 4, 0.5],
+#     [1, 5, 0.5],
+#     [1, 6, 0.5],
+#     [1, 3, 0.5],
+#     [1, 7, 0.5],
+#     [1, 8, 0.5],
+#     [1, 9, 0.5],
+#     [2, 7, 0.5],
+#     [2, 8, 0.5],
+#     [2, 9, 0.5],
+#     [3, 7, 0.5],
+#     [3, 8, 0.5],
+#     [3, 9, 0.5],
+#     [4, 7, 0.5],
+#     [4, 8, 0.5],
+#     [4, 9, 0.5],
+#     [5, 7, 0.5],
+#     [5, 8, 0.5],
+#     [5, 9, 0.5],
+#     [6, 7, 0.5],
+#     [6, 8, 0.5],
+#     [6, 9, 0.5],
+#     [7, 8, 0.5],
+#     [7, 9, 0.5],
+#     [2, 1, 0.5]
+# ])
+
+
 # print("synapsenMatrix: {}".format(synapsenMatrix))
 
 input_mit_mapping = np.array([[0.5, 0], [1, 1], [0, 3], [0, 4]])
-output_mit_mapping = np.array([[0, 7], [1, 8], [1, 9]])
+output_mit_mapping = np.array([
+    [0.7, 7],
+    [0, 8],
+    [0.5, 9],
+    [0.1, 10],
+    [0.134, 11],
+    [0.321, 12]
+])
 
 
 def add_synapse(von, nach, gewicht=2 * np.random.random() - 1):
@@ -174,6 +188,7 @@ def step():
 
 
 while(True):
+
     sel = raw_input(
         'press \n e (exit or and other for printing) \n'
         't for training \n a for add neuron \n'
@@ -188,14 +203,14 @@ while(True):
     elif(sel == 'll'):
         for i in range(10000):
 
-            if(i % 2000 is True):
+            if((durchgang % 2000) == 0):
                 for x in np.argwhere(abs(neuro_aktivitaet) < 0.04):
                     remove_neuron(x)
-            if i < 3000:
-                if (i % 70 is True):
+            if durchgang < 3000:
+                if ((durchgang % 60) == 0):
                     add_neuron()
                     pass
-                if(i % 60 is True):
+                if((durchgang % 70) == 0):
                     x = np.argwhere(abs(neuro_aktivitaet) > 10)
                     if len(x) > 2:
 
@@ -205,8 +220,9 @@ while(True):
                         )
                         pass
 
-                for inp in input_mit_mapping:
-                    zustand_t[inp[1]] = inp[0]
+            for inp in input_mit_mapping:
+                zustand_t[inp[1]] = inp[0]
+
             step()
 
     elif(sel == 'l'):
@@ -220,8 +236,9 @@ while(True):
             zustand_t[inp[1]] = inp[0]
         step()
         print('only output \n index \n {} \n loesung: \n {} \n'.format(
-            output_mit_mapping[:, 1], zustand_t1[output_mit_mapping[:, 1]])
-        )
+            output_mit_mapping[:, 1],
+            zustand_t1[output_mit_mapping[:, 1].astype(int)]
+        ))
 
     elif(sel == 'a'):
         print('adding neuron \n')
@@ -246,16 +263,20 @@ while(True):
         print("laenge neuro aktivit.: \n {} \n".format(len(neuro_aktivitaet)))
 
     elif(sel == 's'):
+        zustand_t1 = np.zeros((len(zustand_t), 1))
         for inp in input_mit_mapping:
             zustand_t[inp[1]] = inp[0]
         for row in synapsenMatrix:
-            zustand_t1[row[1]] = 1 / (
-                1 + np.exp(-(zustand_t[row[1]] * row[2]))
-            )
+            if row[1] not in input_mit_mapping[:, 1]:
+                zustand_t1[row[1]] += zustand_t[row[0]] * row[2]
+
+        for ind, outOfSum in np.ndenumerate(zustand_t1):
+            zustand_t1[ind] = 1 / (1 + np.exp(- outOfSum))
 
         print('only output \n index \n {} \n loesung: \n {} \n'.format(
-            output_mit_mapping[:, 1], zustand_t1[output_mit_mapping[:, 1]])
-        )
+            output_mit_mapping[:, 1],
+            zustand_t1[output_mit_mapping[:, 1].astype(int)]
+        ))
 
     else:
         print('noting selected \n \n')
