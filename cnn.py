@@ -49,6 +49,9 @@ synapsenMatrix = np.multiply(
 #     [2, 1, 0.5]
 # ])
 
+# input are nodes 0-4 of the network, output are nodes 7-12 of the nw
+# first entry is the value, second entry is the noden 
+
 
 # print("synapsenMatrix: {}".format(synapsenMatrix))
 
@@ -94,7 +97,7 @@ def remove_neuron(ind):
     global neuro_aktivitaet
     if not any(c in output_mit_mapping[:, 1] for c in (ind, netsize - 1)):
         if not any(d in input_mit_mapping[:, 1] for d in (ind, netsize - 1)):
-            zustand_t = np.delete(zustand_t, ind, axis=0)
+            zustand_t = np.delete(zustand_t, ind - 1, axis=0).copy()
             zustand_t1 = np.copy(zustand_t)
             weg = []
             for key, x in enumerate(synapsenMatrix):
@@ -123,6 +126,7 @@ def remove_neuron(ind):
                 if b:
                     synapsenMatrix[ikey, 1] -= 1
             netsize -= 1
+            # neuro_aktivitaet = np.zeros(netsize)
 
 
 def step():
@@ -144,7 +148,7 @@ def step():
             # zustand_t1[row[1]] += 1 / (
             #     1 + np.exp(-(zustand_t[row[0]] * row[2]))
             # )
-            zustand_t1[row[1]] += zustand_t[row[0]] * row[2]
+            zustand_t1[int(row[1])] += zustand_t[int(row[0])] * row[2]
 
     for ind, outOfSum in np.ndenumerate(zustand_t1):
         zustand_t1[ind] = 1 / (1 + np.exp(- outOfSum))
@@ -153,7 +157,7 @@ def step():
     tempdelta = np.copy(zustand_t1)
 
     for oup in output_mit_mapping:
-        zustand_tziel[oup[1]] = oup[0]
+        zustand_tziel[int(oup[1])] = oup[0]
 
     for laufindex in range(netsize):
         delta_zstd = (
@@ -170,7 +174,7 @@ def step():
                 # pdb.set_trace()
                 pass
             synapsenMatrix[zeile][2] += (
-                delta_zstd * zustand_t[synapsenMatrix[zeile][0]]
+                delta_zstd * zustand_t[int(synapsenMatrix[zeile][0])]
             ) * 0.99
             neuro_aktivitaet[laufindex] += abs(synapsenMatrix[zeile][2])
     zustand_t = np.copy(zustand_t1) * 0.99
@@ -183,13 +187,14 @@ def step():
     #         zustand_t1[n][0], tempdelta[n][0])
     #     )
     print('error {:7.3f} groesse {:3} lauf {:10}'.format(
-        np.linalg.norm(zustand_tziel - zustand_t1), netsize, durchgang)
-    )
+        np.linalg.norm(
+           zustand_tziel - zustand_t1), netsize, durchgang)
+          )
 
 
 while(True):
 
-    sel = raw_input(
+    sel = input(
         'press \n e (exit or and other for printing) \n'
         't for training \n a for add neuron \n'
         ' s for solution \n l for loop 100 \n'
@@ -197,15 +202,18 @@ while(True):
         'pz for print of state \n p for print of synapsenMatrix \n'
         'op for output \n ip for input \n'
     )
-    if(sel == 'e'):
+    if(sel == 'e'): 
         exit()
 
     elif(sel == 'll'):
         for i in range(10000):
 
-            if((durchgang % 2000) == 0):
+            if((durchgang % 200) == 0):
+                removalLimit = 4
                 for x in np.argwhere(abs(neuro_aktivitaet) < 0.04):
-                    remove_neuron(x)
+                    while(removalLimit>0):
+                        remove_neuron(x)
+                        removalLimit -=1
             if durchgang < 3000:
                 if ((durchgang % 60) == 0):
                     add_neuron()
@@ -221,19 +229,19 @@ while(True):
                         pass
 
             for inp in input_mit_mapping:
-                zustand_t[inp[1]] = inp[0]
+                zustand_t[int(inp[1])] = inp[0]
 
             step()
 
     elif(sel == 'l'):
         for i in range(100):
             for inp in input_mit_mapping:
-                zustand_t[inp[1]] = inp[0]
+                zustand_t[int(inp[1])] = inp[0]
             step()
 
     elif(sel == 't'):
         for inp in input_mit_mapping:
-            zustand_t[inp[1]] = inp[0]
+            zustand_t[int(inp[1])] = inp[0]
         step()
         print('only output \n index \n {} \n loesung: \n {} \n'.format(
             output_mit_mapping[:, 1],
@@ -245,7 +253,9 @@ while(True):
         add_neuron()
 
     elif(sel == 'p'):
-        print("neues synapsenMatrix: \n {} \n".format(synapsenMatrix))
+        for d in synapsenMatrix:
+            print(f"{int(d[0])},\t{int(d[1])},\t {d[2]}")
+        # print(f"neues synapsenMatrix: \n {synapsenMatrix} \n")
         print("laenge synapsenMatrix: \n {} \n".format(len(synapsenMatrix)))
 
     elif(sel == 'pz'):
@@ -265,10 +275,10 @@ while(True):
     elif(sel == 's'):
         zustand_t1 = np.zeros((len(zustand_t), 1))
         for inp in input_mit_mapping:
-            zustand_t[inp[1]] = inp[0]
+            zustand_t[int(inp[1])] = inp[0]
         for row in synapsenMatrix:
             if row[1] not in input_mit_mapping[:, 1]:
-                zustand_t1[row[1]] += zustand_t[row[0]] * row[2]
+                zustand_t1[int(row[1])] += zustand_t[int(row[0])] * row[2]
 
         for ind, outOfSum in np.ndenumerate(zustand_t1):
             zustand_t1[ind] = 1 / (1 + np.exp(- outOfSum))
