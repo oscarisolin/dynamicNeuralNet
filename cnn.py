@@ -3,12 +3,13 @@
 import numpy as np
 
 
-netsize = 100
+netsize = 20
 
 zustand_t = 2 * np.random.random((netsize, 1)) - 1
 zustand_t1 = np.copy(zustand_t)
 neuro_aktivitaet = np.zeros(netsize)
 durchgang = 0
+shrinkingFaktor = 0.80
 
 synapsenMatrix = np.multiply(
     (netsize * np.random.random((netsize, 3))).astype(int),
@@ -50,19 +51,23 @@ synapsenMatrix = np.multiply(
 # ])
 
 # input are nodes 0-4 of the network, output are nodes 7-12 of the nw
-# first entry is the value, second entry is the noden 
+# first entry is the value, second entry is the noden
 
 
 # print("synapsenMatrix: {}".format(synapsenMatrix))
 
 input_mit_mapping = np.array([[0.5, 0], [1, 1], [0, 3], [0, 4]])
+# output_mit_mapping = np.array([
+#     [0.7, 7],
+#     [0, 8],
+#     [0.5, 9],
+#     [0.1, 10],
+#     [0.134, 11],
+#     [0.321, 12]
+# ])
+
 output_mit_mapping = np.array([
-    [0.7, 7],
-    [0, 8],
-    [0.5, 9],
-    [0.1, 10],
-    [0.134, 11],
-    [0.321, 12]
+    [0.321, 5]
 ])
 
 
@@ -70,6 +75,12 @@ def add_synapse(von, nach, gewicht=2 * np.random.random() - 1):
     """Addsyn."""
     global synapsenMatrix
     synapsenMatrix = np.append(synapsenMatrix, [[von, nach, gewicht]], axis=0)
+
+
+def remove_synapse(d):
+    """Delsyn."""
+    global synapsenMatrix
+    synapsenMatrix = np.delete(synapsenMatrix, d, axis=0)
 
 
 def add_neuron():
@@ -175,9 +186,10 @@ def step():
                 pass
             synapsenMatrix[zeile][2] += (
                 delta_zstd * zustand_t[int(synapsenMatrix[zeile][0])]
-            ) * 0.99
+            ) * shrinkingFaktor
             neuro_aktivitaet[laufindex] += abs(synapsenMatrix[zeile][2])
-    zustand_t = np.copy(zustand_t1) * 0.99
+    zustand_t = np.copy(zustand_t1) * shrinkingFaktor
+    # synapsenMatrix = synapsenMatrix*shrinkingFaktor  
     durchgang += 1
     # print('error = tziel - t1  (und delta_zstd): \n')
     # # debugger.set_trace()
@@ -188,7 +200,7 @@ def step():
     #     )
     print('error {:7.3f} groesse {:3} lauf {:10}'.format(
         np.linalg.norm(
-           zustand_tziel - zustand_t1), netsize, durchgang)
+            zustand_tziel - zustand_t1), netsize, durchgang)
           )
 
 
@@ -199,21 +211,35 @@ while(True):
         't for training \n a for add neuron \n'
         ' s for solution \n l for loop 100 \n'
         'll for loop 10000 \n na for neuro activity \n'
+        'd to delete some synapse \n'
         'pz for print of state \n p for print of synapsenMatrix \n'
         'op for output \n ip for input \n'
     )
-    if(sel == 'e'): 
+    if(sel == 'e'):
         exit()
+
+    elif(sel == 'd'):
+        removalLimit = 4
+        for x in np.argwhere(abs(synapsenMatrix[:,2]) < 0.04):
+            for i in x[:removalLimit]:
+                remove_synapse(i)
+                removalLimit -= 1
 
     elif(sel == 'll'):
         for i in range(10000):
 
             if((durchgang % 200) == 0):
-                removalLimit = 4
+                removalLimit = 5
                 for x in np.argwhere(abs(neuro_aktivitaet) < 0.04):
-                    while(removalLimit>0):
+                    while(removalLimit > 0):
                         remove_neuron(x)
-                        removalLimit -=1
+                        removalLimit -= 1
+            if((durchgang % 100) == 0):
+                removalLimit = 4
+                for x in np.argwhere(abs(synapsenMatrix[:,2]) < 0.01):
+                    for i in x[:removalLimit]:
+                        remove_synapse(i)
+                        removalLimit -= 1
             if durchgang < 3000:
                 if ((durchgang % 60) == 0):
                     add_neuron()
@@ -259,8 +285,8 @@ while(True):
         print("laenge synapsenMatrix: \n {} \n".format(len(synapsenMatrix)))
 
     elif(sel == 'pz'):
-        print("zustand: \n {} \n".format(zustand_t))
-        print("laenge zustand: \n {} \n".format(len(zustand_t)))
+        print("zustand: \n {} \n".format(zustand_t1))
+        print("laenge zustand: \n {} \n".format(len(zustand_t1)))
 
     elif(sel == 'op'):
         print("output: \n {} \n".format(output_mit_mapping))

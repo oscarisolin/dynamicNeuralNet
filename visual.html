@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="https://d3js.org/d3.v6.min.js"></script>
+    </head>
+    <body>
+		<svg width=300 height=300></svg>
+		<script>
+				  function dragstarted(event, d) {
+			      	if (!event.active) simulation.alphaTarget(0.3).restart();
+				  	d.fx = d.x;
+				 	d.fy = d.y;
+				  }
+
+				  function dragged(event, d) {
+				    d.fx = event.x;
+				    d.fy = event.y;
+				  }
+
+				  function dragended(event, d) {
+				    if (!event.active) simulation.alphaTarget(0);
+				    d.fx = null;
+				    d.fy = null;
+				  }
+
+			let data = [
+							{"r": 4},{"r":6},{"r":3},{"r":9}
+						]
+			let svg = d3.select("svg");
+			const simulation = d3.forceSimulation(data);
+			simulation.force("center_gravity",d3.forceCenter(150,150)).force("repel", d3.forceManyBody()).on('tick',ticked)
+			function ticked() {
+				svg.selectAll("circle").data(data).join("circle").attr("cx",d=>d.x).attr("cy",d=>d.y).attr("r",d=>d.r)
+				.call(d3.drag().on("start",dragstarted).on("drag",dragged).on("end",dragended))
+
+			}
+		</script>
+    </body>
+</html>
