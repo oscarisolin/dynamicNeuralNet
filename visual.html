@@ -2,10 +2,14 @@
 <html>
     <head>
         <script src="https://d3js.org/d3.v6.min.js"></script>
+		<script src="./toinclude.js"></script>
     </head>
     <body>
 		<svg width=300 height=300></svg>
 		<script>
+			myn = new basenode()
+
+			console.log(myn.w)
 				  function dragstarted(event, d) {
 			      	if (!event.active) simulation.alphaTarget(0.3).restart();
 				  	d.fx = d.x;
