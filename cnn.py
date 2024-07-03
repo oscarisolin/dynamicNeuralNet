@@ -317,6 +317,8 @@ while(True):
     else:
         print('noting selected \n \n')
 
+
+
 # for row in synapsenMatrix:
 #     for inp in input_mit_mapping:
 #         zustand_t[inp[1]]=inp[0]

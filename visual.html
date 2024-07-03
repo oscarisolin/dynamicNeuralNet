@@ -6,31 +6,76 @@
     <body>
 		<svg width=300 height=300></svg>
 		<script>
-				  function dragstarted(event, d) {
-			      	if (!event.active) simulation.alphaTarget(0.3).restart();
-				  	d.fx = d.x;
-				 	d.fy = d.y;
-				  }
 
-				  function dragged(event, d) {
-				    d.fx = event.x;
-				    d.fy = event.y;
-				  }
+				// let link = svg.append("g")
+				// 	.attr("stroke", "#999")
+				// 	.attr("stroke-opacity", 0.6)
+				// 	.selectAll("line");
 
-				  function dragended(event, d) {
-				    if (!event.active) simulation.alphaTarget(0);
-				    d.fx = null;
-				    d.fy = null;
-				  }
+				// let node = svg.append("g")
+				// 	.attr("stroke", "#fff")
+				// 	.attr("stroke-width", 1.5)
+				// 	.selectAll("circle");
+
+				// function ticked() {
+				// 	node.attr("cx", d => d.x)
+				// 		.attr("cy", d => d.y);
+
+				// 	link.attr("x1", d => d.source.x)
+				// 		.attr("y1", d => d.source.y)
+				// 		.attr("x2", d => d.target.x)
+				// 		.attr("y2", d => d.target.y);
+				// }
+				
+				function dragstarted(event, d) {
+					if (!event.active) simulation.alphaTarget(0.3).restart();
+					d.fx = d.x;
+					d.fy = d.y;
+				}
+
+					function dragged(event, d) {
+					d.fx = event.x;
+					d.fy = event.y;
+				}
+
+				function dragended(event, d) {
+					if (!event.active) simulation.alphaTarget(0);
+					d.fx = null;
+					d.fy = null;
+				}
+			
+// 			var ws = new WebSocket("ws://localhost:5678");
+// 			ws.onmessage = function (event) {
+//     				var obj = JSON.parse(event.data);
+// //				var a = {"r": obj.radius};
+// 				var a = obj;
+
+// 				data.push(a);
+// 				const simulation = d3.forceSimulation(data);
+// 				simulation.force("center_gravity",d3.forceCenter(150,150)).force("repel", d3.forceManyBody().strength(2)).on('tick',ticked)
+// 				console.log(data);
+// 			};
+
 
 			let data = [
-							{"r": 4},{"r":6},{"r":3},{"r":9}
+							{"id": 0, "r": 4},{"id": 1,"r":6},{"id": 5,"r":3},{"id": 7,"r":9},
+							{"l": [0,4]}
 						]
 			let svg = d3.select("svg");
 			const simulation = d3.forceSimulation(data);
-			simulation.force("center_gravity",d3.forceCenter(150,150)).force("repel", d3.forceManyBody()).on('tick',ticked)
+			simulation.force("center_gravity",d3.forceCenter(150,150).strength(0.2)).force("repel", d3.forceManyBody()).on('tick',ticked)
+
+
 			function ticked() {
-				svg.selectAll("circle").data(data).join("circle").attr("cx",d=>d.x).attr("cy",d=>d.y).attr("r",d=>d.r)
+				svg.selectAll("circle").data(data.filter(x =>'r' in x)).join("circle").attr("cx",d=>d.x).attr("cy",d=>d.y).attr("r",d=>d.r)
+				.call(d3.drag().on("start",dragstarted).on("drag",dragged).on("end",dragended))
+
+				svg.selectAll("line").data(data.filter(x =>'l' in x)).join("line")
+				.attr("x1",d => data.filter(k => 0 == k.id).x)
+				.attr("y1",d => data.filter(k => 0 == k.id).y)
+				.attr("x2",d => data.filter(k => 1 == k.id).x)
+				.attr("y1",d => data.filter(k => 1 == k.id).y)				
+				.attr("stroke", "#fff").attr("stroke-width", 1.5)
 				.call(d3.drag().on("start",dragstarted).on("drag",dragged).on("end",dragended))
 
 			}
