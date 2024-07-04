@@ -16,7 +16,7 @@ async def client_connected_handler(websocket):
     x = 0
     while True:
         
-        message = await websocket.send(json.dumps({"r": x}))
+        message = await websocket.send(json.dumps({"nodes": {"r": x, "activity_state": 50} , "links": {"l": [1,x-1], "activity_state": 50}}))
         x = compute_res(x)
         time.sleep(1)
         # print(x)
