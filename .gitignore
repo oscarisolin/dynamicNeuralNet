@@ -1,3 +1,5 @@
 venv
 dist
 *.pyc
+*.json
+temp*.py

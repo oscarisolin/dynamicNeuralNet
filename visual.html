@@ -35,25 +35,49 @@
 				d.fx = null;
 				d.fy = null;
 			}
+
+			function init_simulation(data, simulation) {
+				if (typeof simulation != 'undefined'){
+					simulation.stop();
+					simulation
+					.force("center_gravity",d3.forceCenter(150,150).strength(0.2))
+					.force("repel", d3.forceManyBody()).on('tick',ticked)
+					.force("link", d3.forceLink(d3_links).id(d => d.id)).on('tick',ticked);
+					simulation.restart();
+					return simulation;
+					
+				}else{
+					return d3.forceSimulation(data.nodes)
+					.force("center_gravity",d3.forceCenter(150,150).strength(0.2))
+					.force("repel", d3.forceManyBody()).on('tick',ticked)
+					.force("link", d3.forceLink(d3_links).id(d => d.id)).on('tick',ticked);				
+
+				}
+			}
 		
 			
 			function ticked() {
-				svg.selectAll("line").data(data.links.filter(x =>'l' in x)).join("line")
+				svg.selectAll("line").data(data.links).join("line")
 				.attr("x1",d => data.nodes.find(k => k.id == d.l[0]).x)
 				.attr("y1",d => data.nodes.find(k => k.id == d.l[0]).y)
 				.attr("x2",d => data.nodes.find(k => k.id == d.l[1]).x)
 				.attr("y2",d => data.nodes.find(k => k.id == d.l[1]).y)
+				.attr("cnn_source_id",d => d.l[0])
+				.attr("cnn_target_id",d => d.l[1])
+				.attr("cnn_activity_state",d => d.activity_state)
 				.attr("stroke", intensity)
-				// .style("fill",intensity)
+				// .style("fill",intensity)				
 				.attr("stroke-width", 1)
 				.call(d3.drag().on("start",dragstarted).on("drag",dragged).on("end",dragended))
 
 				
-				svg.selectAll("circle").data(data.nodes.filter(x =>'r' in x)).join("circle")
+				svg.selectAll("circle").data(data.nodes).join("circle")
 				.style("fill",intensity)
 				.attr("cx",d=>d.x)
 				.attr("cy",d=>d.y)
 				// .attr("r",d=>d.r)
+				.attr("cnn_node_id",d=>d.id)
+				.attr("cnn_activity_state",d => d.activity_state)
 				.attr("r",2)
 				.call(d3.drag().on("start",dragstarted).on("drag",dragged).on("end",dragended))
 
@@ -61,46 +85,56 @@
 			}
 
 			let data = { "nodes":[
-							{"id": 0, "r": 4, "activity_state": 12},{"id": 1,"r":6},{"id": 4,"r":3},{"id": 7,"r":9, "activity_state": 90}	
+							{"id": 0, "activity_state": 12},{"id": 1},{"id": 4},{"id": 7, "activity_state": 90}	
 						],
 						"links":[
 							{"l": [0,4]},	{"l": [0,1]},	{"l": [0,7], "activity_state": 50}
 						]
 			}
 
-			let = d3_links = data.links.map(k=>{return {"source":k.l[0],"target":k.l[1]}})
+			let d3_links = data.links.map(k=>{return {"source":k.l[0],"target":k.l[1]}});
 			let svg = d3.select("svg");
-			const simulation = d3.forceSimulation(data.nodes);
+
+			let simulation = init_simulation(data);
+
+			// const simulation = d3.forceSimulation(data.nodes);
 			
-			simulation
-			.force("center_gravity",d3.forceCenter(150,150).strength(0.2))
-			.force("repel", d3.forceManyBody()).on('tick',ticked)
-			.force("link", d3.forceLink(d3_links).id(d => d.id)).on('tick',ticked);
+			// simulation
+			// .force("center_gravity",d3.forceCenter(150,150).strength(0.2))
+			// .force("repel", d3.forceManyBody()).on('tick',ticked)
+			// .force("link", d3.forceLink(d3_links).id(d => d.id)).on('tick',ticked);
 			// .distance(20)
 
 			
 
-// 			var ws = new WebSocket("ws://localhost:5678");
-// 			ws.onmessage = function (event) {
-// 				var obj = JSON.parse(event.data);
-// //				var a = {"r": obj.radius};
-// 				var a = obj;
+			var ws = new WebSocket("ws://localhost:5678");
+			ws.onmessage = function (event) {
+				var obj = JSON.parse(event.data);
+//				var a = {"activity_state": obj.activity_state};
+				var a = obj;
+				
+				let data = obj;
+				let d3_links = data.links.map(k=>{return {"source":k.l[0],"target":k.l[1]}})
 
-// 				data.nodes.push(a.nodes);
-// 				data.links.push(a.links);
-// 				// const simulation = d3.forceSimulation(data);
-// 				// simulation.force("center_gravity",d3.forceCenter(150,150)).force("repel", d3.forceManyBody().strength(2)).on('tick',ticked)
+				// data.nodes.push(a.nodes);
+				// data.links.push(a.links);
 
-// 				const simulation = d3.forceSimulation(data.nodes);
+				// const simulation = d3.forceSimulation(data);
+				// simulation.force("center_gravity",d3.forceCenter(150,150)).force("repel", d3.forceManyBody().strength(2)).on('tick',ticked)
+				
+				simulation = (data, simulation);
+				
+
+				// const simulation = d3.forceSimulation(data.nodes);
 			
-// 				simulation
-// 				.force("center_gravity",d3.forceCenter(150,150).strength(0.2))
-// 				// .force("repel", d3.forceManyBody()).on('tick',ticked)
-// 				.force("link", d3.forceLink(d3_links).id(d => d.id)).on('tick',ticked);
+				// simulation
+				// .force("center_gravity",d3.forceCenter(150,150).strength(0.2))
+				// // .force("repel", d3.forceManyBody()).on('tick',ticked)
+				// .force("link", d3.forceLink(d3_links).id(d => d.id)).on('tick',ticked);
 
 				
-// 				console.log(data);
-// 			};
+				console.log(data);
+			};
 
 		</script>
     </body>
