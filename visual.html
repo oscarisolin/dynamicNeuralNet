@@ -4,138 +4,125 @@
         <script src="https://d3js.org/d3.v6.min.js"></script>
     </head>
     <body>
-		<svg width=300 height=300></svg>
+        <svg></svg>
 		<script>
+            
+            let width = window.innerWidth;
+            let height = window.innerHeight;
+            const node_radius = 5;
+            const link_width = 2;
+            
+            const svg = d3.select("svg")
+            // center the graph in the svg. (0,0) is the center of the svg
+            .attr("viewBox", [-width / 2, -height / 2, width, height])
+            .attr("width", width)
+            .attr("height", height)
+            
+            function intensity(d) {
+                let begin = d3.color("steelblue");
+                begin.opacity = 0.3;
+                let end = d3.color("red");
+                let scale = d3.scaleLinear([0, 100], [begin, end]).clamp(true);
+                
+                if (typeof d.activity == 'undefined') {
+                    return begin;
+                }
+                return scale(d.activity);
+            }        
+            
+            function apply_drag(simulation) {
+                
+                function dragstarted(event, d) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                }
+                
+                function dragged(event, d) {
+                    d.fx = event.x;
+                    d.fy = event.y;
+                }
+                
+                function dragended(event, d) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    d.fx = null;
+                    d.fy = null;
+                }
+                
+                return d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended);
+            }
 
-			function intensity(d) {
-				let begin = d3.color("steelblue");
-				begin.opacity = 0.1;
-				let end = d3.color("red");
-				let scale = d3.scaleLinear([0, 100], [begin, end]).clamp(true);
-
-				if (typeof d.activity_state == 'undefined') {
-					return begin;
-				}
-				return scale(d.activity_state);
-			}
-			
-			function dragstarted(event, d) {
-				if (!event.active) simulation.alphaTarget(0.3).restart();
-				d.fx = d.x;
-				d.fy = d.y;
-			}
-
-				function dragged(event, d) {
-				d.fx = event.x;
-				d.fy = event.y;
-			}
-
-			function dragended(event, d) {
-				if (!event.active) simulation.alphaTarget(0);
-				d.fx = null;
-				d.fy = null;
-			}
-
-			function init_simulation(data, simulation) {
-				if (typeof simulation != 'undefined'){
-					simulation.stop();
-					simulation
-					.force("center_gravity",d3.forceCenter(150,150).strength(0.2))
-					.force("repel", d3.forceManyBody()).on('tick',ticked)
-					.force("link", d3.forceLink(d3_links).id(d => d.id)).on('tick',ticked);
-					simulation.restart();
-					return simulation;
-					
-				}else{
-					return d3.forceSimulation(data.nodes)
-					.force("center_gravity",d3.forceCenter(150,150).strength(0.2))
-					.force("repel", d3.forceManyBody()).on('tick',ticked)
-					.force("link", d3.forceLink(d3_links).id(d => d.id)).on('tick',ticked);				
-
-				}
-			}
-		
-			
-			function ticked() {
-				svg.selectAll("line").data(data.links).join("line")
-				.attr("x1",d => data.nodes.find(k => k.id == d.l[0]).x)
-				.attr("y1",d => data.nodes.find(k => k.id == d.l[0]).y)
-				.attr("x2",d => data.nodes.find(k => k.id == d.l[1]).x)
-				.attr("y2",d => data.nodes.find(k => k.id == d.l[1]).y)
-				.attr("cnn_source_id",d => d.l[0])
-				.attr("cnn_target_id",d => d.l[1])
-				.attr("cnn_activity_state",d => d.activity_state)
-				.attr("stroke", intensity)
-				// .style("fill",intensity)				
-				.attr("stroke-width", 1)
-				.call(d3.drag().on("start",dragstarted).on("drag",dragged).on("end",dragended))
-
-				
-				svg.selectAll("circle").data(data.nodes).join("circle")
-				.style("fill",intensity)
-				.attr("cx",d=>d.x)
-				.attr("cy",d=>d.y)
-				// .attr("r",d=>d.r)
-				.attr("cnn_node_id",d=>d.id)
-				.attr("cnn_activity_state",d => d.activity_state)
-				.attr("r",2)
-				.call(d3.drag().on("start",dragstarted).on("drag",dragged).on("end",dragended))
+            let link = svg.append("g").selectAll("line")	
+                .attr("stroke-width", link_width);
+                
+            let node = svg.append("g").selectAll("circle");
 
 
-			}
+            const simulation = d3.forceSimulation()        
+                .force("repel", d3.forceManyBody())        
+                .force("link", d3.forceLink().id(d => d.id))
+                .force("center mid x", d3.forceX())
+                .force("center mid y", d3.forceY())
+                .on("tick", ticked);
+        
+        
+        
+            function ticked() {
+                node.attr("cx", d => d.x)
+                .attr("cy", d => d.y)
+                .style("fill",intensity)
+                .attr("cnn_node_id",d=>d.id)
+                .attr("cnn_activity",d => d.activity);
+                
+                link.attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y)
+                    .attr("cnn_source_id",d => d.source.id)
+                    .attr("cnn_target_id",d => d.target.id)
+                    .attr("cnn_activity",d => d.activity)
+                    .attr("stroke", intensity);
+            }
 
-			let data = { "nodes":[
-							{"id": 0, "activity_state": 12},{"id": 1},{"id": 4},{"id": 7, "activity_state": 90}	
-						],
-						"links":[
-							{"l": [0,4]},	{"l": [0,1]},	{"l": [0,7], "activity_state": 50}
-						]
-			}
+            function graph_update(data){
 
-			let d3_links = data.links.map(k=>{return {"source":k.l[0],"target":k.l[1]}});
-			let svg = d3.select("svg");
+                node = node
+                    .data(data.nodes, d => d.id)
+                    // apply drag to new nodes 'manually'
+                    .join(enter => enter.append("circle")
+                    .attr("r", node_radius)
+                    .call(apply_drag(simulation)));
 
-			let simulation = init_simulation(data);
+                    
+                link = link
+                    .data(data.links, d => [d.source, d.target])
+                    .join("line");
+                    
+                simulation.nodes(data.nodes)
+                .force("link").links(data.links);
+                simulation.alpha(0.4).restart().tick();
 
-			// const simulation = d3.forceSimulation(data.nodes);
-			
-			// simulation
-			// .force("center_gravity",d3.forceCenter(150,150).strength(0.2))
-			// .force("repel", d3.forceManyBody()).on('tick',ticked)
-			// .force("link", d3.forceLink(d3_links).id(d => d.id)).on('tick',ticked);
-			// .distance(20)
+                return "updated graph"
+            }
 
-			
+  
+        
+        data = {"nodes": [{"id":1, "activity":70},{"id":2},{"id":3}], "links":[{"source":1,"target":2},{"source":2,"target":1, "activity":40}]}
+        graph_update(data);
 
-			var ws = new WebSocket("ws://localhost:5678");
-			ws.onmessage = function (event) {
-				var obj = JSON.parse(event.data);
-//				var a = {"activity_state": obj.activity_state};
-				var a = obj;
-				
-				let data = obj;
-				let d3_links = data.links.map(k=>{return {"source":k.l[0],"target":k.l[1]}})
-
-				// data.nodes.push(a.nodes);
-				// data.links.push(a.links);
-
-				// const simulation = d3.forceSimulation(data);
-				// simulation.force("center_gravity",d3.forceCenter(150,150)).force("repel", d3.forceManyBody().strength(2)).on('tick',ticked)
-				
-				simulation = (data, simulation);
-				
-
-				// const simulation = d3.forceSimulation(data.nodes);
-			
-				// simulation
-				// .force("center_gravity",d3.forceCenter(150,150).strength(0.2))
-				// // .force("repel", d3.forceManyBody()).on('tick',ticked)
-				// .force("link", d3.forceLink(d3_links).id(d => d.id)).on('tick',ticked);
-
-				
-				console.log(data);
-			};
-
-		</script>
+        var ws = new WebSocket("ws://localhost:5678");
+        ws.onmessage = function (event) {
+            var obj = JSON.parse(event.data);           
+            
+            // TODO map data correctly
+            console.log(obj);
+            // let data = obj;
+            // graph_update(data);
+        };
+        
+        </script>
     </body>
-</html>
+    </html>
