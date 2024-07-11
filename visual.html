@@ -119,8 +119,10 @@
             
             // TODO map data correctly
             console.log(obj);
+			data = {"nodes":obj[0].map((k,i) => ({"id": i, "activity":k}) ), "links":obj[1].map(k=>({"source": k[0], "target": k[1], "activity":k[2]}))}
+			console.log("mapped data",data);
             // let data = obj;
-            // graph_update(data);
+            graph_update(data);
         };
         
         </script>
