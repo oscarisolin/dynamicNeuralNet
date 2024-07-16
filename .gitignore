@@ -3,3 +3,4 @@ dist
 *.pyc
 *.json
 temp*.py
+d3jsv6.js
