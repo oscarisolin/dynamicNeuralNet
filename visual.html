@@ -118,79 +118,51 @@
         var ws = new WebSocket("ws://localhost:5678");
         ws.onmessage = function (event) {
             var obj = JSON.parse(event.data);           
+            // console.log(obj);
             
-            // TODO map data correctly
-            console.log(obj);
-            // data.nodes = obj[0].map((k,i) => ({"id": i, "activity":k}) ),
-            enteringNodes = [];
-            enteringLinks = [];
-            leavingNodes = [];
-            leavingLinks = [];
-
-            obj[0].map((k,i) => ({"id": i, "activity":k}) ).forEach(element => {
-                matcheed = false;
+            let incomingNodes =  [];            
+            let incomingLinks = [];
+            
+            obj[0].forEach((k,i) => {
                 data.nodes.forEach(existingNode => {
-                    if (existingNode.id == element.id) {
-                        existingNode.activity = element.activity;
-                        matcheed = true;
-                        // existingNode.y = element.y;                        
-                    }                    
-                });
-                if (!matcheed) {
-                    // element.x = Math.random() * 100;
-                    // element.y = Math.random() * 100;
-                    enteringNodes.push(element);
-                }
-                // enteringNodes.push(element);
-            });
-
-            
-            
-            
-            obj[1].map(k=>({"source": k[0], "target": k[1], "activity":k[2]})).forEach(element => {
-                matcheed = false;
-                data.links.forEach(existingLink => {
-                    if (existingLink.source.id == element.source && existingLink.target.id == element.target) {
-                        existingLink.activity = element.activity;
+                    matcheed = false;
+                    if (existingNode.id == i) {
+                        existingNode.activity = k;
+                        incomingNodes.push(existingNode);                        
                         matcheed = true;
                     }
                 });
                 if (!matcheed) {
-                    enteringLinks.push(element);
+                    incomingNodes.push({
+                        "id": i, 
+                        "activity":k
+                    });
                 }
-                
-            });
-
-            
-            // data.nodes = data.nodes.filter(existingNode => {
-            //     obj[0].map((k,i) => {
-            //         if (existingNode.id == i) {
-            //             return true;
-            //         }
-            //     });
-            //     return false;
-            // });
-
-            // data.links = data.links.filter(existingLink => {                
-            //     obj[1].map(k=> {
-            //         if (existingLink.source.id == k[0] && existingLink.target.id == k[1]) {
-            //             return true;
-            //         }
-            //     });
-            //     return false;
-            // });
-            
-            enteringNodes.forEach(element => {
-                data.nodes.push(element);
-            });
-
-            enteringLinks.forEach(element => {
-                data.links.push(element);
             });
             
-            // data.links.push(obj[1].map(k=>({"source": k[0], "target": k[1], "activity":k[2]})));
-			console.log("mapped data",data);
-            // let data = obj;
+            data.nodes = incomingNodes;
+            
+            obj[1].forEach(k => {
+                data.links.forEach(existingLink => {
+                    matcheed = false;
+                    if (existingLink.source.id == k[0] && existingLink.target.id == k[1]) {
+                        existingLink.activity = k[2];
+                        incomingLinks.push(existingLink);
+                        matcheed = true;
+                    }
+                });
+                if (!matcheed) {
+                    incomingLinks.push({
+                        "source": k[0], 
+                        "target": k[1], 
+                        "activity":k[2]
+                    });
+                }
+            });
+
+            data.links = incomingLinks;
+			// console.log("mapped data",data);
+
             graph_update(data);
         };
         

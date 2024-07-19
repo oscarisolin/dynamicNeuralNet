@@ -23,7 +23,7 @@ async def client_connected_handler(websocket):
         data = [[],[]]
 
         nodenumber = random.sample(range(1, amount), k=1)[0]
-        linknumber = random.sample(range(1, amount), k=1)[0]
+        linknumber = random.sample(range(1, 2*amount), k=1)[0]
         noderange = range(0, nodenumber)
         linkrange = range(0, linknumber)
 
@@ -36,8 +36,8 @@ async def client_connected_handler(websocket):
 
         # data = [[0,get_activ(),2],[[0,1,get_activ()],[1,2,get_activ()]]]
         await websocket.send(json.dumps(data))
-        # message = await websocket.send(json.dumps({"nodes": [{"id": x, "activity_state": 50}] , "links": [{"l": [1,x-1], "activity_state": 50}]}))
-        time.sleep(1)
+        
+        time.sleep(0.3)
 
 
 
