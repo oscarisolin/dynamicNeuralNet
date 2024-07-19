@@ -124,8 +124,8 @@
             let incomingLinks = [];
             
             obj[0].forEach((k,i) => {
+                matcheed = false;
                 data.nodes.forEach(existingNode => {
-                    matcheed = false;
                     if (existingNode.id == i) {
                         existingNode.activity = k;
                         incomingNodes.push(existingNode);                        

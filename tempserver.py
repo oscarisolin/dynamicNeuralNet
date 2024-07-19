@@ -37,7 +37,7 @@ async def client_connected_handler(websocket):
         # data = [[0,get_activ(),2],[[0,1,get_activ()],[1,2,get_activ()]]]
         await websocket.send(json.dumps(data))
         
-        time.sleep(0.3)
+        time.sleep(3)
 
 
 
