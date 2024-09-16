@@ -1,6 +1,13 @@
 """Cvv test."""
 
+import asyncio
+
+import json
+import time
+import websockets
+import random
 import numpy as np
+import math
 
 
 netsize = 20
@@ -17,6 +24,175 @@ synapsenMatrix = np.multiply(
 )
 
 
+input_mit_mapping = np.array([[0.5, 0], [1, 1], [0, 3], [0, 4]])
+# output_mit_mapping = np.array([
+#     [0.7, 7],
+#     [0, 8],
+#     [0.5, 9],
+#     [0.1, 10],
+#     [0.134, 11],
+#     [0.321, 12]
+# ])
+
+output_mit_mapping = np.array([
+    [0.321, 5]
+])
+
+
+
+async def client_connected_handler(websocket):
+    """Client connected."""
+    global zustand_t
+    global zustand_t1
+    global synapsenMatrix
+
+    autorounds = 0
+    while(True):
+        data = [[],[]]
+        train_data = {}
+        train_data['input'] = np.ndarray(shape=(0,2))
+        train_data['output'] = np.ndarray(shape=(0,2))
+
+
+        sel = input(
+            'press \n e (exit or and other for printing) \n'
+            't for training \n a for add neuron \n'
+            ' s for solution \n l for loop 100 \n'
+            'll for loop 10000 \n na for neuro activity \n'
+            'd to delete some synapse \n'
+            'pz for print of state \n p for print of synapsenMatrix \n'
+            'op for output \n ip for input \n'
+        )
+        if(sel == 'e'):
+            exit()
+
+        elif(sel == 'd'):
+            removalLimit = 4
+            for x in np.argwhere(abs(synapsenMatrix[:,2]) < 0.04):
+                for i in x[:removalLimit]:
+                    remove_synapse(i)
+                    removalLimit -= 1
+
+        elif(sel == 'll'):
+            for i in range(10000):
+
+                if((durchgang % 200) == 0):
+                    removalLimit = 5
+                    for x in np.argwhere(abs(neuro_aktivitaet) < 0.04):
+                        while(removalLimit > 0):
+                            remove_neuron(x)
+                            removalLimit -= 1
+                if((durchgang % 100) == 0):
+                    removalLimit = 4
+                    for x in np.argwhere(abs(synapsenMatrix[:,2]) < 0.01):
+                        for i in x[:removalLimit]:
+                            remove_synapse(i)
+                            removalLimit -= 1
+                if durchgang < 3000:
+                    if ((durchgang % 60) == 0):
+                        add_neuron()
+                        pass
+                    if((durchgang % 70) == 0):
+                        x = np.argwhere(abs(neuro_aktivitaet) > 10)
+                        if len(x) > 2:
+
+                            add_synapse(
+                                np.random.choice(x[:, 0]),
+                                np.random.choice(x[:, 0]), 0.01
+                            )
+                            pass
+
+                for inp in input_mit_mapping:
+                    zustand_t[int(inp[1])] = inp[0]
+
+                step()
+                autorounds += 1
+
+        elif(sel == 'l'):
+            for i in range(100):
+                for inp in input_mit_mapping:
+                    zustand_t[int(inp[1])] = inp[0]
+                step()
+
+        elif(sel == 't'):
+            for inp in input_mit_mapping:
+                zustand_t[int(inp[1])] = inp[0]
+            step()
+            print('only output \n index \n {} \n loesung: \n {} \n'.format(
+                output_mit_mapping[:, 1],
+                zustand_t1[output_mit_mapping[:, 1].astype(int)]
+            ))
+
+        elif(sel == 'a'):
+            print('adding neuron \n')
+            add_neuron()
+
+        elif(sel == 'p'):
+            for d in synapsenMatrix:
+                print(f"{int(d[0])},\t{int(d[1])},\t {d[2]}")
+            # print(f"neues synapsenMatrix: \n {synapsenMatrix} \n")
+            print("laenge synapsenMatrix: \n {} \n".format(len(synapsenMatrix)))
+
+        elif(sel == 'pz'):
+            print("zustand: \n {} \n".format(zustand_t1))
+            print("laenge zustand: \n {} \n".format(len(zustand_t1)))
+
+        elif(sel == 'op'):
+            print("output: \n {} \n".format(output_mit_mapping))
+
+        elif(sel == 'ip'):
+            print("input: \n {} \n".format(input_mit_mapping))
+
+        elif(sel == 'na'):
+            print("neuro aktivitaet: \n {} \n".format(neuro_aktivitaet))
+            print("laenge neuro aktivit.: \n {} \n".format(len(neuro_aktivitaet)))
+
+        elif(sel == 's'):
+            zustand_t1 = np.zeros((len(zustand_t), 1))
+            for inp in input_mit_mapping:
+                zustand_t[int(inp[1])] = inp[0]
+            for row in synapsenMatrix:
+                if row[1] not in input_mit_mapping[:, 1]:
+                    zustand_t1[int(row[1])] += zustand_t[int(row[0])] * row[2]
+
+            for ind, outOfSum in np.ndenumerate(zustand_t1):
+                zustand_t1[ind] = 1 / (1 + np.exp(- outOfSum))
+
+            print('only output \n index \n {} \n loesung: \n {} \n'.format(
+                output_mit_mapping[:, 1],
+                zustand_t1[output_mit_mapping[:, 1].astype(int)]
+            ))
+
+        else:
+            print('noting selected \n \n')
+
+        
+        train_data['input'] = input_mit_mapping
+        train_data['output'] = output_mit_mapping
+                
+
+        train_data['input'] = train_data['input'].tolist()
+        train_data['output'] = train_data['output'].tolist()
+        
+
+        for i in zustand_t:
+            data[0].append(i[0]*100)
+
+        for l in synapsenMatrix:
+            data[1].append([l[0],l[1],l[2]])
+
+        await websocket.send(json.dumps(data))
+        await websocket.send(json.dumps(train_data))
+
+
+        # for row in synapsenMatrix:
+        #     for inp in input_mit_mapping:
+        #         zustand_t[inp[1]]=inp[0]
+        #     zustand_t1[row[1]] = 1/(1+np.exp(-(zustand_t[row[1]] * row[2])))
+
+        
+        # await websocket.send(json.dumps(train_data))
+    
 # synapsenMatrix = np.array([
 #     [0, 2, 0.2],
 #     [0, 1, 0.1],
@@ -56,19 +232,7 @@ synapsenMatrix = np.multiply(
 
 # print("synapsenMatrix: {}".format(synapsenMatrix))
 
-input_mit_mapping = np.array([[0.5, 0], [1, 1], [0, 3], [0, 4]])
-# output_mit_mapping = np.array([
-#     [0.7, 7],
-#     [0, 8],
-#     [0.5, 9],
-#     [0.1, 10],
-#     [0.134, 11],
-#     [0.321, 12]
-# ])
 
-output_mit_mapping = np.array([
-    [0.321, 5]
-])
 
 
 def add_synapse(von, nach, gewicht=2 * np.random.random() - 1):
@@ -204,122 +368,13 @@ def step():
           )
 
 
-while(True):
 
-    sel = input(
-        'press \n e (exit or and other for printing) \n'
-        't for training \n a for add neuron \n'
-        ' s for solution \n l for loop 100 \n'
-        'll for loop 10000 \n na for neuro activity \n'
-        'd to delete some synapse \n'
-        'pz for print of state \n p for print of synapsenMatrix \n'
-        'op for output \n ip for input \n'
-    )
-    if(sel == 'e'):
-        exit()
 
-    elif(sel == 'd'):
-        removalLimit = 4
-        for x in np.argwhere(abs(synapsenMatrix[:,2]) < 0.04):
-            for i in x[:removalLimit]:
-                remove_synapse(i)
-                removalLimit -= 1
-
-    elif(sel == 'll'):
-        for i in range(10000):
-
-            if((durchgang % 200) == 0):
-                removalLimit = 5
-                for x in np.argwhere(abs(neuro_aktivitaet) < 0.04):
-                    while(removalLimit > 0):
-                        remove_neuron(x)
-                        removalLimit -= 1
-            if((durchgang % 100) == 0):
-                removalLimit = 4
-                for x in np.argwhere(abs(synapsenMatrix[:,2]) < 0.01):
-                    for i in x[:removalLimit]:
-                        remove_synapse(i)
-                        removalLimit -= 1
-            if durchgang < 3000:
-                if ((durchgang % 60) == 0):
-                    add_neuron()
-                    pass
-                if((durchgang % 70) == 0):
-                    x = np.argwhere(abs(neuro_aktivitaet) > 10)
-                    if len(x) > 2:
-
-                        add_synapse(
-                            np.random.choice(x[:, 0]),
-                            np.random.choice(x[:, 0]), 0.01
-                        )
-                        pass
-
-            for inp in input_mit_mapping:
-                zustand_t[int(inp[1])] = inp[0]
-
-            step()
-
-    elif(sel == 'l'):
-        for i in range(100):
-            for inp in input_mit_mapping:
-                zustand_t[int(inp[1])] = inp[0]
-            step()
-
-    elif(sel == 't'):
-        for inp in input_mit_mapping:
-            zustand_t[int(inp[1])] = inp[0]
-        step()
-        print('only output \n index \n {} \n loesung: \n {} \n'.format(
-            output_mit_mapping[:, 1],
-            zustand_t1[output_mit_mapping[:, 1].astype(int)]
-        ))
-
-    elif(sel == 'a'):
-        print('adding neuron \n')
-        add_neuron()
-
-    elif(sel == 'p'):
-        for d in synapsenMatrix:
-            print(f"{int(d[0])},\t{int(d[1])},\t {d[2]}")
-        # print(f"neues synapsenMatrix: \n {synapsenMatrix} \n")
-        print("laenge synapsenMatrix: \n {} \n".format(len(synapsenMatrix)))
-
-    elif(sel == 'pz'):
-        print("zustand: \n {} \n".format(zustand_t1))
-        print("laenge zustand: \n {} \n".format(len(zustand_t1)))
-
-    elif(sel == 'op'):
-        print("output: \n {} \n".format(output_mit_mapping))
-
-    elif(sel == 'ip'):
-        print("input: \n {} \n".format(input_mit_mapping))
-
-    elif(sel == 'na'):
-        print("neuro aktivitaet: \n {} \n".format(neuro_aktivitaet))
-        print("laenge neuro aktivit.: \n {} \n".format(len(neuro_aktivitaet)))
-
-    elif(sel == 's'):
-        zustand_t1 = np.zeros((len(zustand_t), 1))
-        for inp in input_mit_mapping:
-            zustand_t[int(inp[1])] = inp[0]
-        for row in synapsenMatrix:
-            if row[1] not in input_mit_mapping[:, 1]:
-                zustand_t1[int(row[1])] += zustand_t[int(row[0])] * row[2]
-
-        for ind, outOfSum in np.ndenumerate(zustand_t1):
-            zustand_t1[ind] = 1 / (1 + np.exp(- outOfSum))
-
-        print('only output \n index \n {} \n loesung: \n {} \n'.format(
-            output_mit_mapping[:, 1],
-            zustand_t1[output_mit_mapping[:, 1].astype(int)]
-        ))
-
-    else:
-        print('noting selected \n \n')
+async def main():
+    async with websockets.serve(client_connected_handler, "", 5678):
+        await asyncio.Future()
 
 
 
-# for row in synapsenMatrix:
-#     for inp in input_mit_mapping:
-#         zustand_t[inp[1]]=inp[0]
-#     zustand_t1[row[1]] = 1/(1+np.exp(-(zustand_t[row[1]] * row[2])))
+if __name__ == "__main__":
+    asyncio.run(main())

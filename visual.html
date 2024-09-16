@@ -116,6 +116,7 @@
                     
                 simulation.nodes(data.nodes)
                 .force("link").links(data.links);
+                
                 simulation.alpha(0.4).restart().tick();
 
                 return "updated graph"
@@ -177,12 +178,14 @@
                 data.nodes = incomingNodes;
                 
                 obj[1].forEach(k => {
+                    matcheed = false;
                     data.links.forEach(existingLink => {
-                        matcheed = false;
                         if (existingLink.source.id == k[0] && existingLink.target.id == k[1]) {
                             existingLink.activity = k[2];
-                            incomingLinks.push(existingLink);
-                            matcheed = true;
+                            if (!matcheed) {        
+                                incomingLinks.push(existingLink);
+                                matcheed = true;
+                            }
                         }
                     });
                     if (!matcheed) {
