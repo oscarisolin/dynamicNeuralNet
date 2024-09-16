@@ -35,7 +35,8 @@ input_mit_mapping = np.array([[0.5, 0], [1, 1], [0, 3], [0, 4]])
 # ])
 
 output_mit_mapping = np.array([
-    [0.321, 5]
+    [0.321, 5],
+    [0.9, 6],
 ])
 
 
@@ -53,16 +54,19 @@ async def client_connected_handler(websocket):
         train_data['input'] = np.ndarray(shape=(0,2))
         train_data['output'] = np.ndarray(shape=(0,2))
 
+        if autorounds > 0:
+            sel = 'll'
+        else:
+            sel = input(
+                'press \n e (exit or and other for printing) \n'
+                't for training \n a for add neuron \n'
+                ' s for solution \n l for loop 100 \n'
+                'll for loop 10000 \n na for neuro activity \n'
+                'd to delete some synapse \n'
+                'pz for print of state \n p for print of synapsenMatrix \n'
+                'op for output \n ip for input \n'
+            )
 
-        sel = input(
-            'press \n e (exit or and other for printing) \n'
-            't for training \n a for add neuron \n'
-            ' s for solution \n l for loop 100 \n'
-            'll for loop 10000 \n na for neuro activity \n'
-            'd to delete some synapse \n'
-            'pz for print of state \n p for print of synapsenMatrix \n'
-            'op for output \n ip for input \n'
-        )
         if(sel == 'e'):
             exit()
 
@@ -74,39 +78,41 @@ async def client_connected_handler(websocket):
                     removalLimit -= 1
 
         elif(sel == 'll'):
-            for i in range(10000):
+            if autorounds == 0:
+                autorounds = 10000  
 
-                if((durchgang % 200) == 0):
-                    removalLimit = 5
-                    for x in np.argwhere(abs(neuro_aktivitaet) < 0.04):
-                        while(removalLimit > 0):
-                            remove_neuron(x)
-                            removalLimit -= 1
-                if((durchgang % 100) == 0):
-                    removalLimit = 4
-                    for x in np.argwhere(abs(synapsenMatrix[:,2]) < 0.01):
-                        for i in x[:removalLimit]:
-                            remove_synapse(i)
-                            removalLimit -= 1
-                if durchgang < 3000:
-                    if ((durchgang % 60) == 0):
-                        add_neuron()
+            if((durchgang % 10) == 0):
+                removalLimit = 5
+                for x in np.argwhere(abs(neuro_aktivitaet) < 0.08):
+                    while(removalLimit > 0):
+                        remove_neuron(x)
+                        removalLimit -= 1
+            if((durchgang % 100) == 0):
+                removalLimit = 4
+                for x in np.argwhere(abs(synapsenMatrix[:,2]) < 0.01):
+                    for i in x[:removalLimit]:
+                        remove_synapse(i)
+                        removalLimit -= 1
+            if durchgang < 3000:
+                if ((durchgang % 60) == 0):
+                    add_neuron()
+                    pass
+                if((durchgang % 70) == 0):
+                    x = np.argwhere(abs(neuro_aktivitaet) > 10)
+                    if len(x) > 2:
+
+                        add_synapse(
+                            np.random.choice(x[:, 0]),
+                            np.random.choice(x[:, 0]), 0.01
+                        )
                         pass
-                    if((durchgang % 70) == 0):
-                        x = np.argwhere(abs(neuro_aktivitaet) > 10)
-                        if len(x) > 2:
 
-                            add_synapse(
-                                np.random.choice(x[:, 0]),
-                                np.random.choice(x[:, 0]), 0.01
-                            )
-                            pass
+            for inp in input_mit_mapping:
+                zustand_t[int(inp[1])] = inp[0]
 
-                for inp in input_mit_mapping:
-                    zustand_t[int(inp[1])] = inp[0]
-
-                step()
-                autorounds += 1
+            step()
+            autorounds -= 1
+                
 
         elif(sel == 'l'):
             for i in range(100):
