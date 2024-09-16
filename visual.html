@@ -64,10 +64,21 @@
 
 
             const simulation = d3.forceSimulation()        
-                .force("repel", d3.forceManyBody())        
+                // .force("repel", d3.forceManyBody())
+                .force("collide", d3.forceCollide(node_radius * 2))
                 .force("link", d3.forceLink().id(d => d.id))
-                .force("center mid x", d3.forceX())
+                .force("center mid x",d3.forceX())
                 .force("center mid y", d3.forceY())
+                .force("input left force", () => {
+                    data.nodes.forEach(d => {
+                        if (d.input) {
+                            d.x = -width*3/8;
+                        }
+                        if (d.output) {
+                            d.x = width*3/8;
+                        }
+                    });
+                })
                 .on("tick", ticked);
         
         
@@ -123,45 +134,70 @@
             let incomingNodes =  [];            
             let incomingLinks = [];
             
-            obj[0].forEach((k,i) => {
-                matcheed = false;
+            if (obj.input) {
                 data.nodes.forEach(existingNode => {
-                    if (existingNode.id == i) {
-                        existingNode.activity = k;
-                        incomingNodes.push(existingNode);                        
-                        matcheed = true;
-                    }
+                    existingNode.input = false;
+                    existingNode.output = false;
                 });
-                if (!matcheed) {
-                    incomingNodes.push({
-                        "id": i, 
-                        "activity":k
+                obj.input.forEach((k,i) => {              
+                    data.nodes.forEach(existingNode => {
+                        if (existingNode.id == k[1]) {
+                            existingNode.activity = k[0]; 
+                            existingNode.input = true;                            
+                        }
                     });
-                }
-            });
-            
-            data.nodes = incomingNodes;
-            
-            obj[1].forEach(k => {
-                data.links.forEach(existingLink => {
+                });
+                obj.output.forEach((k,i) => {                    
+                    data.nodes.forEach(existingNode => {
+                        if (existingNode.id == k[1]) {
+                            existingNode.activity = k[0]; 
+                            existingNode.output = true;                            
+                        }
+                    });
+                });
+                
+            }else{
+                obj[0].forEach((k,i) => {
                     matcheed = false;
-                    if (existingLink.source.id == k[0] && existingLink.target.id == k[1]) {
-                        existingLink.activity = k[2];
-                        incomingLinks.push(existingLink);
-                        matcheed = true;
+                    data.nodes.forEach(existingNode => {
+                        if (existingNode.id == i) {
+                            existingNode.activity = k;
+                            incomingNodes.push(existingNode);                        
+                            matcheed = true;
+                        }
+                    });
+                    if (!matcheed) {
+                        incomingNodes.push({
+                            "id": i, 
+                            "activity":k
+                        });
                     }
                 });
-                if (!matcheed) {
-                    incomingLinks.push({
-                        "source": k[0], 
-                        "target": k[1], 
-                        "activity":k[2]
+                
+                data.nodes = incomingNodes;
+                
+                obj[1].forEach(k => {
+                    data.links.forEach(existingLink => {
+                        matcheed = false;
+                        if (existingLink.source.id == k[0] && existingLink.target.id == k[1]) {
+                            existingLink.activity = k[2];
+                            incomingLinks.push(existingLink);
+                            matcheed = true;
+                        }
                     });
-                }
-            });
-
-            data.links = incomingLinks;
-			// console.log("mapped data",data);
+                    if (!matcheed) {
+                        incomingLinks.push({
+                            "source": k[0], 
+                            "target": k[1], 
+                            "activity":k[2]
+                        });
+                    }
+                });
+    
+                data.links = incomingLinks;
+                // console.log("mapped data",data);
+            }
+            
 
             graph_update(data);
         };
