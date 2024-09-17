@@ -24,7 +24,8 @@
                 let begin = d3.color("steelblue");
                 begin.opacity = 0.3;
                 let end = d3.color("red");
-                let scale = d3.scaleLinear([0, 100], [begin, end]).clamp(true);
+                end.opacity = 0.7;
+                let scale = d3.scaleLinear([0, 1], [begin, end]).clamp(true);
                 
                 if (typeof d.activity == 'undefined') {
                     return begin;
@@ -73,6 +74,7 @@
                     data.nodes.forEach(d => {
                         if (d.input) {
                             d.x = -width*3/8;
+                            // d.y = -height*3/8;
                         }
                         if (d.output) {
                             d.x = width*3/8;

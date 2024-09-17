@@ -79,14 +79,17 @@ async def client_connected_handler(websocket):
 
         elif(sel == 'll'):
             if autorounds == 0:
-                autorounds = 10000  
+                autorounds = 1000  
 
-            if((durchgang % 10) == 0):
+            if((durchgang % 20) == 0):
                 removalLimit = 5
-                for x in np.argwhere(abs(neuro_aktivitaet) < 0.08):
-                    while(removalLimit > 0):
-                        remove_neuron(x)
-                        removalLimit -= 1
+                for a in range(removalLimit):
+                    hits = np.argwhere(abs(neuro_aktivitaet) < 0.04)[:,0]
+                    if hits.size > 0:
+                        toremove = np.random.choice(hits, size=1)
+                        for i in toremove:
+                            remove_neuron(i)
+                
             if((durchgang % 100) == 0):
                 removalLimit = 4
                 for x in np.argwhere(abs(synapsenMatrix[:,2]) < 0.01):
@@ -181,8 +184,8 @@ async def client_connected_handler(websocket):
         train_data['output'] = train_data['output'].tolist()
         
 
-        for i in zustand_t:
-            data[0].append(i[0]*100)
+        for i in neuro_aktivitaet:
+            data[0].append(i)
 
         for l in synapsenMatrix:
             data[1].append([l[0],l[1],l[2]])
@@ -278,6 +281,7 @@ def remove_neuron(ind):
     global neuro_aktivitaet
     if not any(c in output_mit_mapping[:, 1] for c in (ind, netsize - 1)):
         if not any(d in input_mit_mapping[:, 1] for d in (ind, netsize - 1)):
+            neuro_aktivitaet = np.delete(neuro_aktivitaet, ind - 1, axis=0).copy()
             zustand_t = np.delete(zustand_t, ind - 1, axis=0).copy()
             zustand_t1 = np.copy(zustand_t)
             weg = []
@@ -288,22 +292,20 @@ def remove_neuron(ind):
                             weg.append([key])
 
             synapsenMatrix = np.delete(synapsenMatrix, weg, axis=0)
-            for ikey, b in enumerate(output_mit_mapping[:, 1] > ind[0]):
+            for ikey, b in enumerate(output_mit_mapping[:, 1] > ind):
                 if b:
                     output_mit_mapping[ikey, 1] -= 1
 
-            for ikey, b in enumerate(input_mit_mapping[:, 1] > ind[0]):
+            for ikey, b in enumerate(input_mit_mapping[:, 1] > ind):
                 if b:
 
                     input_mit_mapping[ikey, 1] -= 1
 
-            for ikey, b in enumerate(synapsenMatrix[:, 0] > ind[0]):
-
+            for ikey, b in enumerate(synapsenMatrix[:, 0] > ind):
                 if b:
-
                     synapsenMatrix[ikey, 0] -= 1
 
-            for ikey, b in enumerate(synapsenMatrix[:, 1] > ind[0]):
+            for ikey, b in enumerate(synapsenMatrix[:, 1] > ind):
                 if b:
                     synapsenMatrix[ikey, 1] -= 1
             netsize -= 1
