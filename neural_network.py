@@ -190,8 +190,12 @@ class NeuralNetwork:
         self.zustand_t = np.copy(self.zustand_t1) * self.shrinking_factor
         self.durchgang += 1
         
-        # Calculate and print error (before pruning changes network size)
-        error = np.linalg.norm(zustand_tziel - self.zustand_t1)
+        # Calculate and print error (only on output neurons)
+        # This avoids diluting the error across all hidden neurons
+        output_indices = self.output_mapping[:, 1].astype(int)
+        target_values = zustand_tziel[output_indices]
+        actual_values = self.zustand_t1[output_indices]
+        error = np.mean((target_values - actual_values) ** 2)
         print(f'error {error:7.3f} groesse {self.netsize:3} lauf {self.durchgang:10}')
         
         # Remove isolated neurons with no connections (after error calculation)
@@ -280,3 +284,65 @@ class NeuralNetwork:
         """Print neuron activity."""
         print("neuro aktivitaet: \n {} \n".format(self.neuro_aktivitaet))
         print("laenge neuro aktivit.: \n {} \n".format(len(self.neuro_aktivitaet)))
+    
+    def save_state(self):
+        """Save current network state for potential rollback."""
+        import copy
+        return {
+            'zustand_t': np.copy(self.zustand_t),
+            'zustand_t1': np.copy(self.zustand_t1),
+            'neuro_aktivitaet': np.copy(self.neuro_aktivitaet),
+            'synapsenMatrix': np.copy(self.synapsenMatrix),
+            'netsize': self.netsize,
+            'durchgang': self.durchgang,
+            'input_mapping': np.copy(self.input_mapping),
+            'output_mapping': np.copy(self.output_mapping)
+        }
+    
+    def restore_state(self, state):
+        """Restore network state from saved state."""
+        self.zustand_t = np.copy(state['zustand_t'])
+        self.zustand_t1 = np.copy(state['zustand_t1'])
+        self.neuro_aktivitaet = np.copy(state['neuro_aktivitaet'])
+        self.synapsenMatrix = np.copy(state['synapsenMatrix'])
+        self.netsize = state['netsize']
+        self.durchgang = state['durchgang']
+        self.input_mapping = np.copy(state['input_mapping'])
+        self.output_mapping = np.copy(state['output_mapping'])
+    
+    def count_neuron_synapses(self, neuron_idx):
+        """Count how many synapses are connected to a neuron."""
+        count = 0
+        for synapse in self.synapsenMatrix:
+            if synapse[0] == neuron_idx or synapse[1] == neuron_idx:
+                count += 1
+        return count
+
+    def delete_random_weak_neuron(self, activity_threshold=0.04, max_synapses=4):
+        """Delete one random neuron with weak activity and few synapses.
+
+        The method never removes input or output neurons. It returns True if a
+        neuron was removed and False otherwise.
+
+        Args:
+            activity_threshold: Maximum absolute activity to qualify as "weak".
+            max_synapses: Maximum number of synapses attached to the neuron.
+        """
+        candidates = []
+        for idx in range(self.netsize):
+            # Never delete input or output neurons
+            if (idx in self.input_mapping[:, 1] or
+                idx in self.output_mapping[:, 1]):
+                continue
+
+            if abs(self.neuro_aktivitaet[idx]) < activity_threshold:
+                if self.count_neuron_synapses(idx) <= max_synapses:
+                    candidates.append(idx)
+
+        if not candidates:
+            return False
+
+        # Pick one candidate at random and remove it
+        victim = np.random.choice(candidates)
+        self.remove_neuron(int(victim))
+        return True

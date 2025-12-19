@@ -21,15 +21,25 @@ class InteractivePlot:
         self.update_freq = [50]
         self.next_iterations = [initial_iterations]
         self.autorounds = [initial_iterations]
+
+        # Neuron deletion control (interval in iterations)
+        self.delete_interval = [200]
+
+        # Growth control: only grow if error above this threshold
+        self.grow_error_threshold = [0.02]
         
         # History tracking for error and network size
         self.iteration_history = []
         self.error_history = []
         self.size_history = []
         
+        # Error tolerance for rollback (as percentage)
+        self.error_tolerance = [10.0]  # percentage increase allowed
+        
         # Setup the figure
         plt.ion()
-        self.fig = plt.figure(figsize=(14, 10))
+        # Slightly taller figure to give more room for sliders
+        self.fig = plt.figure(figsize=(14, 11))
         
         # Main plot for outputs (rows 0-3)
         self.ax = plt.subplot2grid((10, 5), (0, 0), colspan=5, rowspan=4)
@@ -51,8 +61,11 @@ class InteractivePlot:
         # Create control buttons
         self._setup_buttons()
         
-        # Create slider
+        # Create sliders
         self._setup_slider()
+
+        # Adjust layout so widget titles don't overlap
+        self.fig.subplots_adjust(top=0.95, bottom=0.06, hspace=0.9)
         
     def _setup_buttons(self):
         """Create and configure control buttons."""
@@ -78,8 +91,32 @@ class InteractivePlot:
         self.btn_restart.on_clicked(self._restart_training)
         
     def _setup_slider(self):
-        """Create and configure the iteration slider."""
-        # Create slider axis (row 8)
+        """Create and configure the sliders."""
+        # Slider for neuron deletion interval (row 6, left side)
+        # Use only columns 0-1 and leave column 2 empty as spacing
+        ax_delete = plt.subplot2grid((10, 5), (6, 0), colspan=2)
+        self.slider_delete_interval = Slider(
+            ax_delete, 'Delete every (iter)',
+            10, 1000, valinit=self.delete_interval[0], valstep=10,
+            valfmt='%.0f'
+        )
+        self.slider_delete_interval.on_changed(self._update_delete_interval)
+        self.slider_delete_interval.label.set_fontsize(8)
+        self.slider_delete_interval.valtext.set_fontsize(8)
+
+        # Slider for growth error threshold (row 6, right side), shifted
+        # to columns 3-4 so there is a visual gap to the left slider
+        ax_grow = plt.subplot2grid((10, 5), (6, 3), colspan=2)
+        self.slider_grow_threshold = Slider(
+            ax_grow, 'Grow if error >',
+            0.0, 0.5, valinit=self.grow_error_threshold[0], valstep=0.001,
+            valfmt='%.3f'
+        )
+        self.slider_grow_threshold.on_changed(self._update_grow_threshold)
+        self.slider_grow_threshold.label.set_fontsize(8)
+        self.slider_grow_threshold.valtext.set_fontsize(8)
+
+        # Slider for iterations per run (row 8)
         ax_slider = plt.subplot2grid((10, 5), (8, 0), colspan=5)
         
         # Slider with logarithmic scale: 10^0 to 10^5 (1 to 100,000)
@@ -91,6 +128,19 @@ class InteractivePlot:
         
         self.slider_iterations.on_changed(self._update_slider_label)
         self._update_slider_label(2)  # Initialize label
+        self.slider_iterations.label.set_fontsize(8)
+        self.slider_iterations.valtext.set_fontsize(8)
+        
+        # Create error tolerance slider (row 9)
+        ax_tolerance = plt.subplot2grid((10, 5), (9, 0), colspan=5)
+        self.slider_tolerance = Slider(
+            ax_tolerance, 'Error Tolerance (%)',
+            1.0, 200.0, valinit=self.error_tolerance[0], valstep=1.0,
+            valfmt='%.1f%%'
+        )
+        self.slider_tolerance.on_changed(self._update_tolerance)
+        self.slider_tolerance.label.set_fontsize(8)
+        self.slider_tolerance.valtext.set_fontsize(8)
         
     def _toggle_pause(self, event):
         """Toggle pause state."""
@@ -126,6 +176,18 @@ class InteractivePlot:
         iterations = int(10 ** val)
         self.next_iterations[0] = iterations
         self.slider_iterations.valtext.set_text(f'{iterations} iter')
+    
+    def _update_tolerance(self, val):
+        """Update error tolerance value."""
+        self.error_tolerance[0] = val
+
+    def _update_delete_interval(self, val):
+        """Update neuron deletion interval (in iterations)."""
+        self.delete_interval[0] = int(val)
+
+    def _update_grow_threshold(self, val):
+        """Update error threshold above which growth is allowed."""
+        self.grow_error_threshold[0] = float(val)
     
     def update_plot(self, zustand_t1, durchgang, error=None, network_size=None):
         """Update the plot with current network state.

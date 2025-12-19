@@ -108,6 +108,9 @@ async def client_connected_handler(websocket):
                     global input_mit_mapping, output_mit_mapping
                     input_mit_mapping = new_input
                     output_mit_mapping = new_output
+                    # Keep network mappings in sync with the latest example
+                    if network is not None:
+                        network.set_mappings(input_mit_mapping, output_mit_mapping)
                 
                 # Initialize network if needed
                 if network is None:
@@ -134,25 +137,64 @@ async def client_connected_handler(websocket):
 
             # Check if we should continue training
             if plot.autorounds[0] > 0 and not plot.is_stopped():
-                # Pruning and growth
-                if((network.durchgang % 20) == 0):
-                    network.prune_inactive_neurons(threshold=0.04, max_removals=5)
-                    
-                if((network.durchgang % 100) == 0):
-                    network.prune_weak_synapses(threshold=0.01, max_removals=4)
-                    
-                if network.durchgang < 3000:
-                    if ((network.durchgang % 60) == 0):
-                        network.add_neuron()
-                    if((network.durchgang % 70) == 0):
-                        network.grow_network()
-
                 # Apply inputs
                 for inp in input_mit_mapping:
                     network.zustand_t[int(inp[1])] = inp[0]
 
                 # Train
                 error = network.step()
+
+                # Pruning based on activity and weak synapses
+                if (network.durchgang % 20) == 0:
+                    network.prune_inactive_neurons(threshold=0.04, max_removals=5)
+
+                if (network.durchgang % 100) == 0:
+                    network.prune_weak_synapses(threshold=0.01, max_removals=4)
+
+                # Conditional growth: only if error above GUI-defined threshold
+                if network.durchgang < 3000 and error > plot.grow_error_threshold[0]:
+                    if (network.durchgang % 60) == 0:
+                        network.add_neuron()
+                    if (network.durchgang % 70) == 0:
+                        network.grow_network()
+
+                # Periodically try deleting a random weak neuron.
+                # The interval (in iterations) is controlled via the GUI slider.
+                delete_interval = max(1, int(plot.delete_interval[0]))
+                if network.durchgang > 0 and (network.durchgang % delete_interval) == 0:
+                    base_error = error
+                    saved_state = network.save_state()
+
+                    deleted = network.delete_random_weak_neuron(
+                        activity_threshold=0.04,
+                        max_synapses=4,
+                    )
+
+                    if deleted:
+                        # Run a few additional training steps to evaluate impact
+                        trial_steps = 5
+                        trial_error = base_error
+                        for _ in range(trial_steps):
+                            trial_error = network.step()
+
+                        # Compare error change against tolerance from GUI (percentage)
+                        tol_percent = float(plot.error_tolerance[0])
+                        denom = abs(base_error) if abs(base_error) > 1e-8 else 1e-8
+                        percent_change = 100.0 * (trial_error - base_error) / denom
+
+                        if percent_change > tol_percent:
+                            print(
+                                f"Rollback neuron deletion: error increased by "
+                                f"{percent_change:5.2f}% > tolerance {tol_percent:5.2f}%"
+                            )
+                            network.restore_state(saved_state)
+                            error = base_error
+                        else:
+                            print(
+                                f"Accepted neuron deletion: error change "
+                                f"{percent_change:5.2f}% within tolerance {tol_percent:5.2f}%"
+                            )
+                            error = trial_error
                 
                 # Update plot and websocket at the same frequency
                 if plot.should_update_plot():
