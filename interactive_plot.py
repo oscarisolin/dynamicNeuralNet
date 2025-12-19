@@ -22,15 +22,31 @@ class InteractivePlot:
         self.next_iterations = [initial_iterations]
         self.autorounds = [initial_iterations]
         
+        # History tracking for error and network size
+        self.iteration_history = []
+        self.error_history = []
+        self.size_history = []
+        
         # Setup the figure
         plt.ion()
-        self.fig = plt.figure(figsize=(14, 8))
-        self.ax = plt.subplot2grid((8, 5), (0, 0), colspan=5, rowspan=5)
+        self.fig = plt.figure(figsize=(14, 10))
+        
+        # Main plot for outputs (rows 0-3)
+        self.ax = plt.subplot2grid((10, 5), (0, 0), colspan=5, rowspan=4)
         self.ax.set_title('Network Output vs Target During Training')
         self.ax.set_xlabel('Output Neuron Index')
         self.ax.set_ylabel('Value')
         self.ax.set_ylim([0, 1])
         self.ax.legend(['Target', 'Actual'])
+        
+        # Line plot for error and network size (rows 4-5)
+        self.ax_metrics = plt.subplot2grid((10, 5), (4, 0), colspan=5, rowspan=2)
+        self.ax_metrics.set_xlabel('Iteration')
+        self.ax_metrics.set_ylabel('Error', color='red')
+        self.ax_metrics.tick_params(axis='y', labelcolor='red')
+        self.ax_metrics_twin = self.ax_metrics.twinx()
+        self.ax_metrics_twin.set_ylabel('Network Size', color='blue')
+        self.ax_metrics_twin.tick_params(axis='y', labelcolor='blue')
         
         # Create control buttons
         self._setup_buttons()
@@ -40,12 +56,12 @@ class InteractivePlot:
         
     def _setup_buttons(self):
         """Create and configure control buttons."""
-        # Create button axes (row 6)
-        ax_pause = plt.subplot2grid((8, 5), (6, 0))
-        ax_stop = plt.subplot2grid((8, 5), (6, 1))
-        ax_faster = plt.subplot2grid((8, 5), (6, 2))
-        ax_slower = plt.subplot2grid((8, 5), (6, 3))
-        ax_restart = plt.subplot2grid((8, 5), (6, 4))
+        # Create button axes (row 7)
+        ax_pause = plt.subplot2grid((10, 5), (7, 0))
+        ax_stop = plt.subplot2grid((10, 5), (7, 1))
+        ax_faster = plt.subplot2grid((10, 5), (7, 2))
+        ax_slower = plt.subplot2grid((10, 5), (7, 3))
+        ax_restart = plt.subplot2grid((10, 5), (7, 4))
         
         # Create buttons
         self.btn_pause = Button(ax_pause, 'Pause')
@@ -63,8 +79,8 @@ class InteractivePlot:
         
     def _setup_slider(self):
         """Create and configure the iteration slider."""
-        # Create slider axis (row 7)
-        ax_slider = plt.subplot2grid((8, 5), (7, 0), colspan=5)
+        # Create slider axis (row 8)
+        ax_slider = plt.subplot2grid((10, 5), (8, 0), colspan=5)
         
         # Slider with logarithmic scale: 10^0 to 10^5 (1 to 100,000)
         self.slider_iterations = Slider(
@@ -111,13 +127,22 @@ class InteractivePlot:
         self.next_iterations[0] = iterations
         self.slider_iterations.valtext.set_text(f'{iterations} iter')
     
-    def update_plot(self, zustand_t1, durchgang):
+    def update_plot(self, zustand_t1, durchgang, error=None, network_size=None):
         """Update the plot with current network state.
         
         Args:
             zustand_t1: Current neuron states
             durchgang: Current iteration number
+            error: Current error value
+            network_size: Current network size
         """
+        # Update history
+        if error is not None and network_size is not None:
+            self.iteration_history.append(durchgang)
+            self.error_history.append(error)
+            self.size_history.append(network_size)
+        
+        # Clear and update output bar chart
         self.ax.clear()
         output_indices = self.output_mapping[:, 1].astype(int)
         target_values = self.output_mapping[:, 0]
@@ -141,6 +166,24 @@ class InteractivePlot:
             f'Update freq: {self.update_freq[0]}'
         )
         self.ax.legend()
+        
+        # Update error and size line plots
+        if len(self.iteration_history) > 0:
+            self.ax_metrics.clear()
+            self.ax_metrics_twin.clear()
+            
+            # Plot error
+            self.ax_metrics.plot(self.iteration_history, self.error_history, 'r-', linewidth=2, label='Error')
+            self.ax_metrics.set_xlabel('Iteration')
+            self.ax_metrics.set_ylabel('Error', color='red')
+            self.ax_metrics.tick_params(axis='y', labelcolor='red')
+            self.ax_metrics.grid(True, alpha=0.3)
+            
+            # Plot network size
+            self.ax_metrics_twin.plot(self.iteration_history, self.size_history, 'b-', linewidth=2, label='Network Size')
+            self.ax_metrics_twin.set_ylabel('Network Size (neurons)', color='blue')
+            self.ax_metrics_twin.tick_params(axis='y', labelcolor='blue')
+        
         plt.pause(0.001)
     
     def handle_pause(self):

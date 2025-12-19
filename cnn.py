@@ -116,6 +116,10 @@ async def client_connected_handler(websocket):
                 
                 # Create interactive plot
                 plot = InteractivePlot(output_mit_mapping, initial_iterations=100)
+                
+                # Do initial update to show plot immediately
+                plot.update_plot(network.zustand_t1, network.durchgang, 0.0, network.netsize)
+                
                 autorounds = 1
                 completion_message_printed = False
             
@@ -148,11 +152,11 @@ async def client_connected_handler(websocket):
                     network.zustand_t[int(inp[1])] = inp[0]
 
                 # Train
-                network.step()
+                error = network.step()
                 
                 # Update plot and websocket at the same frequency
                 if plot.should_update_plot():
-                    plot.update_plot(network.zustand_t1, network.durchgang)
+                    plot.update_plot(network.zustand_t1, network.durchgang, error, network.netsize)
                     
                     # Send websocket updates at same frequency as plot updates
                     data[0] = []
