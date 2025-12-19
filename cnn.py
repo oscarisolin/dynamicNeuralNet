@@ -1,53 +1,57 @@
-"""Cvv test."""
+"""Dynamic Neural Network with Interactive Training."""
 
 import asyncio
-
 import json
 import time
 import websockets
 import random
 import numpy as np
-import math
+
+from neural_network import NeuralNetwork
+from interactive_plot import InteractivePlot
+import training_examples
 
 
-netsize = 20
+# Global network instance
+network = None
 
-zustand_t = 2 * np.random.random((netsize, 1)) - 1
-zustand_t1 = np.copy(zustand_t)
-neuro_aktivitaet = np.zeros(netsize)
-durchgang = 0
-shrinkingFaktor = 0.80
+# Global shutdown flag
+shutdown_event = None
 
-synapsenMatrix = np.multiply(
-    (netsize * np.random.random((netsize, 3))).astype(int),
-    [1, 1, (0.1 / netsize)]
-)
-
-
+# Default mappings (can be overridden by training example selection)
 input_mit_mapping = np.array([[0.5, 0], [1, 1], [0, 3], [0, 4]])
-# output_mit_mapping = np.array([
-#     [0.7, 7],
-#     [0, 8],
-#     [0.5, 9],
-#     [0.1, 10],
-#     [0.134, 11],
-#     [0.321, 12]
-# ])
-
 output_mit_mapping = np.array([
     [0.321, 5],
     [0.9, 6],
 ])
 
 
+def select_training_example():
+    """Allow user to select a training example."""
+    print("\n" + "="*50)
+    print("TRAINING EXAMPLE SELECTION")
+    print("="*50)
+    print(training_examples.list_examples())
+    print("\nOr press Enter to use current custom mapping")
+    
+    choice = input("\nSelect example (1-10) or press Enter: ").strip()
+    
+    if choice and choice.isdigit() and 1 <= int(choice) <= 10:
+        example = training_examples.get_example(choice)
+        print(f"\n✓ Selected: {example['name']}")
+        print(f"  {example['description']}")
+        return example['input'], example['output']
+    else:
+        print("\n✓ Using current custom mapping")
+        return None, None
+
 
 async def client_connected_handler(websocket):
     """Client connected."""
-    global zustand_t
-    global zustand_t1
-    global synapsenMatrix
+    global network
 
     autorounds = 0
+    plot = None
     while(True):
         data = [[],[]]
         train_data = {}
@@ -57,94 +61,145 @@ async def client_connected_handler(websocket):
         if autorounds > 0:
             sel = 'll'
         else:
-            sel = input(
-                'press \n e (exit or and other for printing) \n'
-                't for training \n a for add neuron \n'
-                ' s for solution \n l for loop 100 \n'
-                'll for loop 10000 \n na for neuro activity \n'
-                'd to delete some synapse \n'
-                'pz for print of state \n p for print of synapsenMatrix \n'
-                'op for output \n ip for input \n'
-            )
+            print("\n" + "="*60)
+            print("   DYNAMIC NEURAL NETWORK - COMMAND MENU")
+            print("="*60)
+            print("\n📊 TRAINING:")
+            print("  ll  - Interactive training (live plot with controls)")
+            print("  t   - Single training step")
+            print("  s   - Forward pass only (no training)")
+            print("\n🔧 NETWORK STRUCTURE:")
+            print("  a   - Add a neuron")
+            print("  d   - Delete weak synapses")
+            print("\n📋 INFORMATION:")
+            print("  p   - Print synapse matrix")
+            print("  pz  - Print neuron states")
+            print("  na  - Print neuron activity")
+            print("  ip  - Print input mapping")
+            print("  op  - Print output mapping")
+            print("\n⚙️  SYSTEM:")
+            print("  e   - Exit program")
+            print("="*60)
+            sel = input("\n→ Enter command: ").strip().lower()
 
         if(sel == 'e'):
-            exit()
+            print("\n👋 Closing connections and exiting...")
+            if plot is not None:
+                plot.close()
+            await websocket.close()
+            print("✓ Goodbye!\n")
+            # Signal shutdown
+            shutdown_event.set()
+            break
 
         elif(sel == 'd'):
-            removalLimit = 4
-            for x in np.argwhere(abs(synapsenMatrix[:,2]) < 0.04):
-                for i in x[:removalLimit]:
-                    remove_synapse(i)
-                    removalLimit -= 1
+            if network is None:
+                print("Error: Network not initialized. Run 'll' first.")
+            else:
+                print('Removing weak synapses...')
+                network.prune_weak_synapses(threshold=0.04, max_removals=4)
 
         elif(sel == 'll'):
-            if autorounds == 0:
-                autorounds = 1000  
-
-            if((durchgang % 20) == 0):
-                removalLimit = 5
-                for a in range(removalLimit):
-                    hits = np.argwhere(abs(neuro_aktivitaet) < 0.04)[:,0]
-                    if hits.size > 0:
-                        toremove = np.random.choice(hits, size=1)
-                        for i in toremove:
-                            remove_neuron(i)
+            if plot is None:
+                # Select training example on first run
+                new_input, new_output = select_training_example()
+                if new_input is not None:
+                    global input_mit_mapping, output_mit_mapping
+                    input_mit_mapping = new_input
+                    output_mit_mapping = new_output
                 
-            if((durchgang % 100) == 0):
-                removalLimit = 4
-                for x in np.argwhere(abs(synapsenMatrix[:,2]) < 0.01):
-                    for i in x[:removalLimit]:
-                        remove_synapse(i)
-                        removalLimit -= 1
-            if durchgang < 3000:
-                if ((durchgang % 60) == 0):
-                    add_neuron()
-                    pass
-                if((durchgang % 70) == 0):
-                    x = np.argwhere(abs(neuro_aktivitaet) > 10)
-                    if len(x) > 2:
-
-                        add_synapse(
-                            np.random.choice(x[:, 0]),
-                            np.random.choice(x[:, 0]), 0.01
-                        )
-                        pass
-
-            for inp in input_mit_mapping:
-                zustand_t[int(inp[1])] = inp[0]
-
-            step()
-            autorounds -= 1
+                # Initialize network if needed
+                if network is None:
+                    network = NeuralNetwork()
+                    network.set_mappings(input_mit_mapping, output_mit_mapping)
                 
+                # Create interactive plot
+                plot = InteractivePlot(output_mit_mapping, initial_iterations=1000)
+                autorounds = 1
 
-        elif(sel == 'l'):
-            for i in range(100):
+            # Check if we should continue training
+            if plot.autorounds[0] > 0 and not plot.is_stopped():
+                # Pruning and growth
+                if((network.durchgang % 20) == 0):
+                    network.prune_inactive_neurons(threshold=0.04, max_removals=5)
+                    
+                if((network.durchgang % 100) == 0):
+                    network.prune_weak_synapses(threshold=0.01, max_removals=4)
+                    
+                if network.durchgang < 3000:
+                    if ((network.durchgang % 60) == 0):
+                        network.add_neuron()
+                    if((network.durchgang % 70) == 0):
+                        network.grow_network()
+
+                # Apply inputs
                 for inp in input_mit_mapping:
-                    zustand_t[int(inp[1])] = inp[0]
-                step()
+                    network.zustand_t[int(inp[1])] = inp[0]
+
+                # Train
+                network.step()
+                
+                # Update plot
+                if plot.should_update_plot():
+                    plot.update_plot(network.zustand_t1, network.durchgang)
+                
+                # Decrement autorounds
+                plot.decrement_rounds()
+                
+                # Pause handling
+                plot.handle_pause()
+                
+                # Send websocket updates during training
+                data[0] = []
+                data[1] = []
+                for i in network.neuro_aktivitaet:
+                    data[0].append(float(i))
+                for l in network.synapsenMatrix:
+                    data[1].append([int(l[0]), int(l[1]), float(l[2])])
+                
+                train_data['input'] = input_mit_mapping.tolist()
+                train_data['output'] = output_mit_mapping.tolist()
+                
+                await websocket.send(json.dumps(data))
+                await websocket.send(json.dumps(train_data))
+            
+            # Check status
+            if plot.is_stopped():
+                autorounds = 0
+                plot.close()
+                plot = None
+            elif plot.is_complete() and not plot.is_stopped():
+                plot.print_completion_message()
+                # Keep autorounds at 0 to wait for user input
+                autorounds = 0
 
         elif(sel == 't'):
-            for inp in input_mit_mapping:
-                zustand_t[int(inp[1])] = inp[0]
-            step()
-            print('only output \n index \n {} \n loesung: \n {} \n'.format(
-                output_mit_mapping[:, 1],
-                zustand_t1[output_mit_mapping[:, 1].astype(int)]
-            ))
+            if network is None:
+                print("Error: Network not initialized. Run 'll' first.")
+            else:
+                for inp in input_mit_mapping:
+                    network.zustand_t[int(inp[1])] = inp[0]
+                network.step()
+                network.print_output()
 
         elif(sel == 'a'):
             print('adding neuron \n')
-            add_neuron()
+            if network is None:
+                print("Error: Network not initialized. Run 'll' first.")
+            else:
+                network.add_neuron()
 
         elif(sel == 'p'):
-            for d in synapsenMatrix:
-                print(f"{int(d[0])},\t{int(d[1])},\t {d[2]}")
-            # print(f"neues synapsenMatrix: \n {synapsenMatrix} \n")
-            print("laenge synapsenMatrix: \n {} \n".format(len(synapsenMatrix)))
+            if network is None:
+                print("Error: Network not initialized. Run 'll' first.")
+            else:
+                network.print_synapses()
 
         elif(sel == 'pz'):
-            print("zustand: \n {} \n".format(zustand_t1))
-            print("laenge zustand: \n {} \n".format(len(zustand_t1)))
+            if network is None:
+                print("Error: Network not initialized. Run 'll' first.")
+            else:
+                network.print_state()
 
         elif(sel == 'op'):
             print("output: \n {} \n".format(output_mit_mapping))
@@ -153,27 +208,34 @@ async def client_connected_handler(websocket):
             print("input: \n {} \n".format(input_mit_mapping))
 
         elif(sel == 'na'):
-            print("neuro aktivitaet: \n {} \n".format(neuro_aktivitaet))
-            print("laenge neuro aktivit.: \n {} \n".format(len(neuro_aktivitaet)))
+            if network is None:
+                print("Error: Network not initialized. Run 'll' first.")
+            else:
+                network.print_activity()
 
         elif(sel == 's'):
-            zustand_t1 = np.zeros((len(zustand_t), 1))
-            for inp in input_mit_mapping:
-                zustand_t[int(inp[1])] = inp[0]
-            for row in synapsenMatrix:
-                if row[1] not in input_mit_mapping[:, 1]:
-                    zustand_t1[int(row[1])] += zustand_t[int(row[0])] * row[2]
+            if network is None:
+                print("Error: Network not initialized. Run 'll' first.")
+            else:
+                zustand_t1_local = np.zeros((len(network.zustand_t), 1))
+                for inp in input_mit_mapping:
+                    network.zustand_t[int(inp[1])] = inp[0]
+                for row in network.synapsenMatrix:
+                    if row[1] not in input_mit_mapping[:, 1]:
+                        zustand_t1_local[int(row[1])] += network.zustand_t[int(row[0])] * row[2]
 
-            for ind, outOfSum in np.ndenumerate(zustand_t1):
-                zustand_t1[ind] = 1 / (1 + np.exp(- outOfSum))
+                for ind, outOfSum in np.ndenumerate(zustand_t1_local):
+                    zustand_t1_local[ind] = 1 / (1 + np.exp(- outOfSum))
 
-            print('only output \n index \n {} \n loesung: \n {} \n'.format(
-                output_mit_mapping[:, 1],
-                zustand_t1[output_mit_mapping[:, 1].astype(int)]
-            ))
+                print('only output \n index \n {} \n loesung: \n {} \n'.format(
+                    output_mit_mapping[:, 1],
+                    zustand_t1_local[output_mit_mapping[:, 1].astype(int)]
+                ))
 
         else:
-            print('noting selected \n \n')
+            if sel:
+                print(f"\n⚠️  Unknown command: '{sel}'")
+                print("Type a valid command from the menu above.\n")
 
         
         train_data['input'] = input_mit_mapping
@@ -183,11 +245,12 @@ async def client_connected_handler(websocket):
         train_data['input'] = train_data['input'].tolist()
         train_data['output'] = train_data['output'].tolist()
         
-
-        for i in neuro_aktivitaet:
+        neuro_aktivitaet_to_send = network.neuro_aktivitaet if network else []
+        for i in neuro_aktivitaet_to_send:
             data[0].append(i)
 
-        for l in synapsenMatrix:
+        synapsenMatrix_to_send = network.synapsenMatrix if network else []
+        for l in synapsenMatrix_to_send:
             data[1].append([l[0],l[1],l[2]])
 
         await websocket.send(json.dumps(data))
@@ -244,145 +307,21 @@ async def client_connected_handler(websocket):
 
 
 
-def add_synapse(von, nach, gewicht=2 * np.random.random() - 1):
-    """Addsyn."""
-    global synapsenMatrix
-    synapsenMatrix = np.append(synapsenMatrix, [[von, nach, gewicht]], axis=0)
-
-
-def remove_synapse(d):
-    """Delsyn."""
-    global synapsenMatrix
-    synapsenMatrix = np.delete(synapsenMatrix, d, axis=0)
-
-
-def add_neuron():
-    """Add neur."""
-    global zustand_t
-    global zustand_t1
-    global netsize
-    global neuro_aktivitaet
-    last_index = len(zustand_t)
-    zustand_t = np.append(zustand_t, [[0]], axis=0)
-    zustand_t1 = np.copy(zustand_t)
-    netsize += 1
-    neuro_aktivitaet = np.zeros(netsize)
-    for i in range(4):
-        add_synapse(np.random.randint(last_index), last_index, 0.01)
-        add_synapse(last_index, np.random.randint(last_index), 0.01)
-
-
-def remove_neuron(ind):
-    """Remove neur."""
-    global zustand_t
-    global zustand_t1
-    global synapsenMatrix
-    global netsize
-    global neuro_aktivitaet
-    if not any(c in output_mit_mapping[:, 1] for c in (ind, netsize - 1)):
-        if not any(d in input_mit_mapping[:, 1] for d in (ind, netsize - 1)):
-            neuro_aktivitaet = np.delete(neuro_aktivitaet, ind - 1, axis=0).copy()
-            zustand_t = np.delete(zustand_t, ind - 1, axis=0).copy()
-            zustand_t1 = np.copy(zustand_t)
-            weg = []
-            for key, x in enumerate(synapsenMatrix):
-                if x[0] == ind or x[1] == ind:
-                    if ind not in input_mit_mapping[:, 1]:
-                        if ind not in output_mit_mapping[:, 1]:
-                            weg.append([key])
-
-            synapsenMatrix = np.delete(synapsenMatrix, weg, axis=0)
-            for ikey, b in enumerate(output_mit_mapping[:, 1] > ind):
-                if b:
-                    output_mit_mapping[ikey, 1] -= 1
-
-            for ikey, b in enumerate(input_mit_mapping[:, 1] > ind):
-                if b:
-
-                    input_mit_mapping[ikey, 1] -= 1
-
-            for ikey, b in enumerate(synapsenMatrix[:, 0] > ind):
-                if b:
-                    synapsenMatrix[ikey, 0] -= 1
-
-            for ikey, b in enumerate(synapsenMatrix[:, 1] > ind):
-                if b:
-                    synapsenMatrix[ikey, 1] -= 1
-            netsize -= 1
-            # neuro_aktivitaet = np.zeros(netsize)
-
-
-def step():
-    """Step func."""
-    global zustand_t
-    global zustand_t1
-    global neuro_aktivitaet
-    global netsize
-    neuro_aktivitaet = np.zeros(netsize)
-    global synapsenMatrix
-    global durchgang
-    zustand_t1 = np.zeros((len(zustand_t), 1))
-
-    for row in synapsenMatrix:
-        if row[1] not in input_mit_mapping[:, 1]:
-            if row[1] > len(zustand_t1) - 1:
-                # pdb.set_trace()
-                pass
-            # zustand_t1[row[1]] += 1 / (
-            #     1 + np.exp(-(zustand_t[row[0]] * row[2]))
-            # )
-            zustand_t1[int(row[1])] += zustand_t[int(row[0])] * row[2]
-
-    for ind, outOfSum in np.ndenumerate(zustand_t1):
-        zustand_t1[ind] = 1 / (1 + np.exp(- outOfSum))
-
-    zustand_tziel = np.copy(zustand_t1)
-    tempdelta = np.copy(zustand_t1)
-
-    for oup in output_mit_mapping:
-        zustand_tziel[int(oup[1])] = oup[0]
-
-    for laufindex in range(netsize):
-        delta_zstd = (
-            zustand_tziel[laufindex] -
-            zustand_t1[laufindex]
-        ) * (
-            zustand_t[laufindex] *
-            (1 - zustand_t[laufindex])
-        )
-        tempdelta[laufindex] = delta_zstd
-        rows = np.where(synapsenMatrix[:, 1] == laufindex)
-        for zeile in rows[0]:
-            if len(zustand_t) <= synapsenMatrix[zeile][0]:
-                # pdb.set_trace()
-                pass
-            synapsenMatrix[zeile][2] += (
-                delta_zstd * zustand_t[int(synapsenMatrix[zeile][0])]
-            ) * shrinkingFaktor
-            neuro_aktivitaet[laufindex] += abs(synapsenMatrix[zeile][2])
-    zustand_t = np.copy(zustand_t1) * shrinkingFaktor
-    # synapsenMatrix = synapsenMatrix*shrinkingFaktor  
-    durchgang += 1
-    # print('error = tziel - t1  (und delta_zstd): \n')
-    # # debugger.set_trace()
-    # for (n, z) in enumerate(zustand_tziel):
-    #     print('{:7.3f} = {:7.3f} - {:7.3f} ; {:7.3f}'.format(
-    #         zustand_tziel[n][0] - zustand_t1[n][0], zustand_tziel[n][0],
-    #         zustand_t1[n][0], tempdelta[n][0])
-    #     )
-    print('error {:7.3f} groesse {:3} lauf {:10}'.format(
-        np.linalg.norm(
-            zustand_tziel - zustand_t1), netsize, durchgang)
-          )
-
-
 
 
 async def main():
+    global shutdown_event
+    shutdown_event = asyncio.Event()
+    
     async with websockets.serve(client_connected_handler, "", 5678):
-        await asyncio.Future()
+        print("WebSocket server started on port 5678")
+        print("Open visual.html in your browser to see the network visualization\n")
+        await shutdown_event.wait()
 
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n👋 Interrupted. Goodbye!\n")

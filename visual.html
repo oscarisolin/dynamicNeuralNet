@@ -37,6 +37,11 @@
                 
                 function dragstarted(event, d) {
                     if (!event.active) simulation.alphaTarget(0.3).restart();
+                    // Mark node as being dragged
+                    d._isDragging = true;
+                    // Store original fixed position (if any)
+                    d._originalFx = d.fx;
+                    d._originalFy = d.fy;
                     d.fx = d.x;
                     d.fy = d.y;
                 }
@@ -47,9 +52,19 @@
                 }
                 
                 function dragended(event, d) {
-                    if (!event.active) simulation.alphaTarget(0);
-                    d.fx = null;
-                    d.fy = null;
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    // Mark node as no longer being dragged
+                    d._isDragging = false;
+                    // Restore original fixed position or free the node
+                    d.fx = d._originalFx !== undefined ? d._originalFx : null;
+                    d.fy = d._originalFy !== undefined ? d._originalFy : null;
+                    // Clean up temporary storage
+                    delete d._originalFx;
+                    delete d._originalFy;
+                    // Let the simulation settle
+                    setTimeout(() => {
+                        if (!simulation.alpha()) simulation.alpha(0.3).restart();
+                    }, 0);
                 }
                 
                 return d3.drag()
@@ -65,22 +80,11 @@
 
 
             const simulation = d3.forceSimulation()        
-                // .force("repel", d3.forceManyBody())
-                .force("collide", d3.forceCollide(node_radius * 2))
-                .force("link", d3.forceLink().id(d => d.id))
-                .force("center mid x",d3.forceX())
-                .force("center mid y", d3.forceY())
-                .force("input left force", () => {
-                    data.nodes.forEach(d => {
-                        if (d.input) {
-                            d.x = -width*3/8;
-                            // d.y = -height*3/8;
-                        }
-                        if (d.output) {
-                            d.x = width*3/8;
-                        }
-                    });
-                })
+                .force("repel", d3.forceManyBody().strength(-50))
+                .force("collide", d3.forceCollide(node_radius * 3))
+                .force("link", d3.forceLink().id(d => d.id).distance(80))
+                .force("center mid x",d3.forceX().strength(0.05))
+                .force("center mid y", d3.forceY().strength(0.05))
                 .on("tick", ticked);
         
         
@@ -102,14 +106,49 @@
                     .attr("stroke", intensity);
             }
 
+            let previousNodeCount = 0;
+            let previousLinkCount = 0;
+            
             function graph_update(data){
+                let structureChanged = (data.nodes.length !== previousNodeCount) || 
+                                      (data.links.length !== previousLinkCount);
+                
+                previousNodeCount = data.nodes.length;
+                previousLinkCount = data.links.length;
+
+                // Set fixed positions for input/output nodes (only if not being dragged)
+                let inputNodes = data.nodes.filter(d => d.input);
+                let outputNodes = data.nodes.filter(d => d.output);
+                
+                inputNodes.forEach((d, i) => {
+                    if (!d._isDragging) {
+                        d.fx = -width*3/8;
+                        d.fy = (i - (inputNodes.length - 1) / 2) * (height / (inputNodes.length + 2));
+                    }
+                });
+                
+                outputNodes.forEach((d, i) => {
+                    if (!d._isDragging) {
+                        d.fx = width*3/8;
+                        d.fy = (i - (outputNodes.length - 1) / 2) * (height / (outputNodes.length + 2));
+                    }
+                });
+                
+                // Free other nodes (only if not being dragged)
+                data.nodes.forEach(d => {
+                    if (!d.input && !d.output && !d._isDragging) {
+                        d.fx = null;
+                        d.fy = null;
+                    }
+                });
 
                 node = node
                     .data(data.nodes, d => d.id)
-                    // apply drag to new nodes 'manually'
                     .join(enter => enter.append("circle")
-                    .attr("r", node_radius)
-                    .call(apply_drag(simulation)));
+                    .attr("r", node_radius));
+                
+                // Apply drag behavior to ALL nodes (both new and existing)
+                node.call(apply_drag(simulation));
 
                     
                 link = link
@@ -119,7 +158,13 @@
                 simulation.nodes(data.nodes)
                 .force("link").links(data.links);
                 
-                simulation.alpha(0.4).restart().tick();
+                // Only restart simulation if structure changed (nodes/links added/removed)
+                if (structureChanged) {
+                    simulation.alpha(0.4).restart();
+                } else {
+                    // Just update the rendering without restarting physics
+                    simulation.alpha(Math.max(simulation.alpha(), 0.01));
+                }
 
                 return "updated graph"
             }
@@ -200,6 +245,16 @@
                 });
     
                 data.links = incomingLinks;
+                
+                // Remove nodes that have no connections (isolated nodes)
+                let connectedNodeIds = new Set();
+                data.links.forEach(link => {
+                    connectedNodeIds.add(link.source.id !== undefined ? link.source.id : link.source);
+                    connectedNodeIds.add(link.target.id !== undefined ? link.target.id : link.target);
+                });
+                
+                // Keep only nodes that are connected via at least one link
+                data.nodes = data.nodes.filter(node => connectedNodeIds.has(node.id));
                 // console.log("mapped data",data);
             }
             
