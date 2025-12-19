@@ -115,7 +115,7 @@ async def client_connected_handler(websocket):
                     network.set_mappings(input_mit_mapping, output_mit_mapping)
                 
                 # Create interactive plot
-                plot = InteractivePlot(output_mit_mapping, initial_iterations=1000)
+                plot = InteractivePlot(output_mit_mapping, initial_iterations=100)
                 autorounds = 1
                 completion_message_printed = False
             
@@ -150,29 +150,29 @@ async def client_connected_handler(websocket):
                 # Train
                 network.step()
                 
-                # Update plot
+                # Update plot and websocket at the same frequency
                 if plot.should_update_plot():
                     plot.update_plot(network.zustand_t1, network.durchgang)
+                    
+                    # Send websocket updates at same frequency as plot updates
+                    data[0] = []
+                    data[1] = []
+                    for i in network.neuro_aktivitaet:
+                        data[0].append(float(i))
+                    for l in network.synapsenMatrix:
+                        data[1].append([int(l[0]), int(l[1]), float(l[2])])
+                    
+                    train_data['input'] = input_mit_mapping.tolist()
+                    train_data['output'] = output_mit_mapping.tolist()
+                    
+                    await websocket.send(json.dumps(data))
+                    await websocket.send(json.dumps(train_data))
                 
                 # Decrement autorounds
                 plot.decrement_rounds()
                 
                 # Pause handling
                 plot.handle_pause()
-                
-                # Send websocket updates during training
-                data[0] = []
-                data[1] = []
-                for i in network.neuro_aktivitaet:
-                    data[0].append(float(i))
-                for l in network.synapsenMatrix:
-                    data[1].append([int(l[0]), int(l[1]), float(l[2])])
-                
-                train_data['input'] = input_mit_mapping.tolist()
-                train_data['output'] = output_mit_mapping.tolist()
-                
-                await websocket.send(json.dumps(data))
-                await websocket.send(json.dumps(train_data))
             
             # Check status
             if plot.is_stopped():

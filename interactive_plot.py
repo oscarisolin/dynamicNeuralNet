@@ -8,7 +8,7 @@ import numpy as np
 class InteractivePlot:
     """Manages the interactive matplotlib plot for training visualization."""
     
-    def __init__(self, output_mapping, initial_iterations=1000):
+    def __init__(self, output_mapping, initial_iterations=100):
         """Initialize the interactive plot.
         
         Args:
@@ -18,7 +18,7 @@ class InteractivePlot:
         self.output_mapping = output_mapping
         self.paused = [False]
         self.stopped = [False]
-        self.update_freq = [10]
+        self.update_freq = [50]
         self.next_iterations = [initial_iterations]
         self.autorounds = [initial_iterations]
         
@@ -69,12 +69,12 @@ class InteractivePlot:
         # Slider with logarithmic scale: 10^0 to 10^5 (1 to 100,000)
         self.slider_iterations = Slider(
             ax_slider, 'Iterations',
-            0, 5, valinit=3, valstep=0.1,
+            0, 5, valinit=2, valstep=0.1,
             valfmt='%.0f iter'
         )
         
         self.slider_iterations.on_changed(self._update_slider_label)
-        self._update_slider_label(3)  # Initialize label
+        self._update_slider_label(2)  # Initialize label
         
     def _toggle_pause(self, event):
         """Toggle pause state."""
