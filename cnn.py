@@ -52,6 +52,7 @@ async def client_connected_handler(websocket):
 
     autorounds = 0
     plot = None
+    completion_message_printed = False
     while(True):
         data = [[],[]]
         train_data = {}
@@ -116,6 +117,16 @@ async def client_connected_handler(websocket):
                 # Create interactive plot
                 plot = InteractivePlot(output_mit_mapping, initial_iterations=1000)
                 autorounds = 1
+                completion_message_printed = False
+            
+            # Check if plot window was closed
+            import matplotlib.pyplot as plt
+            if not plt.fignum_exists(plot.fig.number):
+                print("\n✓ Plot window closed. Returning to menu.\n")
+                autorounds = 0
+                plot = None
+                completion_message_printed = False
+                continue
 
             # Check if we should continue training
             if plot.autorounds[0] > 0 and not plot.is_stopped():
@@ -168,10 +179,24 @@ async def client_connected_handler(websocket):
                 autorounds = 0
                 plot.close()
                 plot = None
+                completion_message_printed = False
             elif plot.is_complete() and not plot.is_stopped():
-                plot.print_completion_message()
-                # Keep autorounds at 0 to wait for user input
-                autorounds = 0
+                # Print completion message only once
+                if not completion_message_printed:
+                    plot.print_completion_message()
+                    completion_message_printed = True
+                
+                # Keep looping and checking if "Run More" was clicked
+                # Don't go back to menu, stay in this mode
+                autorounds = 1  # Keep ll mode active
+                # Wait for matplotlib to process button clicks
+                import matplotlib.pyplot as plt
+                plt.pause(0.1)
+                # The loop will continue, and if plot.autorounds[0] > 0, training will resume
+                # Reset flag when training resumes
+                if plot.autorounds[0] > 0:
+                    completion_message_printed = False
+                continue  # Skip to next iteration immediately
 
         elif(sel == 't'):
             if network is None:

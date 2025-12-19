@@ -208,10 +208,12 @@ class NeuralNetwork:
         """
         hits = np.argwhere(abs(self.neuro_aktivitaet) < threshold)[:, 0]
         if hits.size > 0:
-            for _ in range(min(max_removals, len(hits))):
-                toremove = np.random.choice(hits, size=1)
-                for i in toremove:
-                    self.remove_neuron(i)
+            # Select neurons to remove and sort in descending order
+            num_to_remove = min(max_removals, len(hits))
+            to_remove = np.random.choice(hits, size=num_to_remove, replace=False)
+            # Remove in reverse order to maintain valid indices
+            for i in sorted(to_remove, reverse=True):
+                self.remove_neuron(i)
     
     def prune_isolated_neurons(self):
         """Remove neurons that have no synapses connected to them at all."""
