@@ -14,13 +14,13 @@ MAX_HISTORY = 300
 
 USE_INPUT_OVERRIDE = True
 USE_TARGET_OVERWRITE = True
-FREE_RUN = False  # disables overwrite but keeps training
+FREE_RUN = False
 
 NUM_NODES = 4
 INPUT_NODE = 0
 OUTPUT_NODE = 3
 
-# Fully connected graph (no self loops)
+# Fully connected graph
 rng = np.random.default_rng(42)
 EDGES = [(i, j, float(rng.uniform(0, 1)))
          for i in range(NUM_NODES)
@@ -33,7 +33,7 @@ def relu(x): return max(0.0, x)
 def relu_deriv(x): return 1.0 if x > 0 else 0.0
 
 # =========================
-# FUNCTION THREAD (x → sin(x))
+# FUNCTION THREAD
 # =========================
 class FunctionThread:
     def __init__(self):
@@ -90,9 +90,15 @@ for e in edges:
 pos = nx.spring_layout(G, seed=1)
 
 plt.ion()
-fig, (ax_graph, ax_func) = plt.subplots(2, 1, figsize=(10, 8))
-fig2, axs = plt.subplots(2, 2, figsize=(8, 6))
-axs = axs.flatten()
+
+fig = plt.figure(figsize=(8, 6))
+fig.canvas.manager.set_window_title('Graph + Loss')
+ax_graph = fig.add_subplot(2, 1, 1)
+ax_func = fig.add_subplot(2, 1, 2)
+
+fig2 = plt.figure(figsize=(8, 6))
+fig2.canvas.manager.set_window_title('Node Activity')
+axs = [fig2.add_subplot(2, 2, i+1) for i in range(NUM_NODES)]
 
 history = [np.zeros(MAX_HISTORY) for _ in range(NUM_NODES)]
 target_history = np.zeros(MAX_HISTORY)
@@ -115,15 +121,18 @@ btn_input = Button(ax_b1, 'Input ON')
 btn_target = Button(ax_b2, 'Target ON')
 btn_free = Button(ax_b3, 'Free OFF')
 
+
 def toggle_input(event):
     global USE_INPUT_OVERRIDE
     USE_INPUT_OVERRIDE = not USE_INPUT_OVERRIDE
     btn_input.label.set_text(f"Input {'ON' if USE_INPUT_OVERRIDE else 'OFF'}")
 
+
 def toggle_target(event):
     global USE_TARGET_OVERWRITE
     USE_TARGET_OVERWRITE = not USE_TARGET_OVERWRITE
     btn_target.label.set_text(f"Target {'ON' if USE_TARGET_OVERWRITE else 'OFF'}")
+
 
 def toggle_free(event):
     global FREE_RUN
@@ -135,14 +144,26 @@ btn_target.on_clicked(toggle_target)
 btn_free.on_clicked(toggle_free)
 
 # =========================
-# UPDATE
+# RUNNING FLAG FOR GRACEFUL EXIT
+# =========================
+running = True
+
+def on_close(event):
+    global running
+    running = False
+
+fig.canvas.mpl_connect('close_event', on_close)
+fig2.canvas.mpl_connect('close_event', on_close)
+
+# =========================
+# UPDATE FUNCTION
 # =========================
 def update():
-    # Forward
     for node in nodes:
         total = sum(nodes[e.src].value * e.w for e in node.in_edges)
-        node.pre_activation = total
-        node.value = total if node.idx == OUTPUT_NODE else relu(total)
+        bias = 0.01  # keep neurons alive in free mode
+        node.pre_activation = total + bias
+        node.value = total if node.idx == OUTPUT_NODE else relu(node.pre_activation)
 
     if USE_INPUT_OVERRIDE:
         nodes[INPUT_NODE].value = func_thread.x
@@ -152,33 +173,30 @@ def update():
 
     loss = 0.5 * (output - target) ** 2
 
-    # Output delta (linear output)
     nodes[OUTPUT_NODE].delta = (output - target)
 
-    # Backprop
     for node in reversed(nodes[:-1]):
         total = sum(e.w * nodes[e.tgt].delta for e in node.out_edges)
         node.delta = total * relu_deriv(node.pre_activation)
 
-    # Gradients + update
     for e in edges:
         e.grad = nodes[e.src].value * nodes[e.tgt].delta
         e.w -= LEARNING_RATE * e.grad
 
-    # Overwrite ONLY for visualization (unless free run)
     if USE_TARGET_OVERWRITE and not FREE_RUN:
         nodes[OUTPUT_NODE].value = target
 
     return loss
 
 # =========================
-# DRAW
+# DRAW FUNCTION
 # =========================
 def autoscale(ax, data):
     dmin, dmax = np.min(data), np.max(data)
     if dmin == dmax:
         dmax += 1e-3
     ax.set_ylim(dmin, dmax)
+
 
 def draw(loss):
     global idx
@@ -188,7 +206,7 @@ def draw(loss):
     loss_history[idx] = loss
 
     for i in range(NUM_NODES):
-        history[i][idx] = nodes[i].value
+        history[i][idx] = nodes[i].value  # always plot node activity
         node_lines[i].set_ydata(history[i])
         autoscale(axs[i], history[i])
         axs[i].set_title(f'Node {i}')
@@ -201,7 +219,6 @@ def draw(loss):
         ax_graph.clear()
         values = [nodes[i].value for i in G.nodes]
         weights = [e.w for e in edges]
-
         nx.draw(G, pos, ax=ax_graph,
                 with_labels=True,
                 node_color=values,
@@ -216,11 +233,12 @@ def draw(loss):
 # =========================
 # MAIN LOOP
 # =========================
+func_thread.running = True
 try:
-    while True:
+    while running:
         loss = update()
         draw(loss)
         time.sleep(UPDATE_FREQUENCY)
-except KeyboardInterrupt:
+finally:
     func_thread.running = False
-    print("Stopped.")
+    print('Stopped gracefully.')
